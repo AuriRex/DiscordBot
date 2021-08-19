@@ -16,6 +16,7 @@ using DiscordBot.Attributes;
 using DSharpPlus.CommandsNext.Exceptions;
 using Communicator.Net;
 using Communicator.Packets;
+using static DiscordBot.Program.MyCoolCustomEventPacket;
 
 namespace DiscordBot
 {
@@ -27,7 +28,17 @@ namespace DiscordBot
         internal static DiscordClient DiscordClientInstance { get; private set; }
         private static Config ConfigInstance { get; set; }
         private static Server CommunicatorServer { get; set; }
-        
+
+        public class MyCoolCustomEventPacket : BasePacket<CustomEventData>
+        {
+            public override CustomEventData PacketData { get; set; }
+
+            public class CustomEventData
+            {
+                public string Message { get; set; }
+            }
+        }
+
         static void Main(string[] args)
         {
             var process = Process.GetCurrentProcess();
@@ -66,6 +77,7 @@ namespace DiscordBot
             ConfigInstance = cfg;
 
             CommunicatorServer = new Server();
+            CommunicatorServer.PacketSerializer.RegisterPacket<MyCoolCustomEventPacket>();
             CommunicatorServer.LogAction = (s) => { Log.Logger.Information($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ErrorLogAction = (s) => { Log.Logger.Error($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ClientConnectedEvent += CommunicatorServer_ClientConnectedEvent;
@@ -85,7 +97,7 @@ namespace DiscordBot
         {
             Client client = (Client) sender;
 
-            Log.Logger.Information($"Received packet {e.GetType()} -> {(e.GetType() == typeof(GenericEventPacket) ? ((GenericEventPacket)e).PacketData.Data : $"{e.EventTime}")}");
+            Log.Logger.Information($"Received packet {e.GetType()} -> {(e.GetType() == typeof(MyCoolCustomEventPacket) ? ((MyCoolCustomEventPacket) e).PacketData.Message : $"{e.EventTime}")}");
 
         }
 
