@@ -15,6 +15,7 @@ using static DiscordBot.Utilities;
 using DiscordBot.Attributes;
 using DSharpPlus.CommandsNext.Exceptions;
 using Communicator.Net;
+using Communicator.Packets;
 
 namespace DiscordBot
 {
@@ -75,6 +76,27 @@ namespace DiscordBot
         private static void CommunicatorServer_ClientConnectedEvent(object sender, Communicator.Net.EventArgs.ClientConnectedEventArgs e)
         {
             Log.Logger.Information($"A Client has connected: {e.ServerID} Game:{e.GameName}");
+
+            e.Client.DisconnectedEvent += Client_DisconnectedEvent;
+            e.Client.PacketReceivedEvent += Client_PacketReceivedEvent;
+        }
+
+        private static void Client_PacketReceivedEvent(object sender, Communicator.Interfaces.IPacket e)
+        {
+            Client client = (Client) sender;
+
+            Log.Logger.Information($"Received packet {e.GetType()} -> {(e.GetType() == typeof(GenericEventPacket) ? ((GenericEventPacket)e).PacketData.Data : $"{e.EventTime}")}");
+
+        }
+
+        private static void Client_DisconnectedEvent(object sender, Communicator.Net.EventArgs.ClientDisconnectedEventArgs e)
+        {
+            Client client = (Client) sender;
+
+            Log.Logger.Information($"A client has disconnected.");
+
+            client.PacketReceivedEvent -= Client_PacketReceivedEvent;
+            client.DisconnectedEvent -= Client_DisconnectedEvent;
         }
 
         static async Task MainAsync()
