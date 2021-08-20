@@ -1,0 +1,12 @@
+version: "3.9"
+volumes:
+  discord-bot-data:
+services:
+  DiscordBot:
+    image: "discord-bot-image"
+    ports:
+      - "11000:11000"
+    environment:
+      - bot_token
+    volumes:
+      - discord-bot-data:/DiscordBot/data

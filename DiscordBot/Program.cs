@@ -22,7 +22,7 @@ namespace DiscordBot
 {
     class Program
     {
-        public const string DEFAULT_CONFIG_LOCATION = "./config.json";
+        public const string DEFAULT_CONFIG_LOCATION = "./data/config.json";
         public static string ConfigLocation { get; set; } = DEFAULT_CONFIG_LOCATION;
 
         internal static DiscordClient DiscordClientInstance { get; private set; }
@@ -133,7 +133,7 @@ namespace DiscordBot
 
             var services = new ServiceCollection();
 
-            var DBM = new DataBaseManager("./database.db");
+            var DBM = new DataBaseManager("./data/database.db");
 
             
 

@@ -13,7 +13,7 @@ namespace DiscordBot.Managers
         private Config _config;
         private Dictionary<ulong, GuildConfig> _guildConfigs;
 
-        public static string GuildConfigFolderPath { get; set; } = "./GuildConfigs/";
+        public static string GuildConfigFolderPath { get; set; } = "./data/GuildConfigs/";
 
         public GuildConfigManager(Config config)
         {
