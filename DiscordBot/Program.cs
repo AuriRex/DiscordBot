@@ -58,7 +58,7 @@ namespace DiscordBot
                 process.Kill();
             };
 
-            if (!Utilities.Tests())
+            if (!Utilities.QuoteUnitTestsQuote())
             {
                 Log.Logger.Fatal("Tests returned false!");
             }

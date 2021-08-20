@@ -50,7 +50,7 @@ namespace DiscordBot
             File.WriteAllText(path, jsonString);
         }
 
-        public static bool Tests()
+        public static bool QuoteUnitTestsQuote()
         {
             var user1 = new DBDiscordUser()
             {
