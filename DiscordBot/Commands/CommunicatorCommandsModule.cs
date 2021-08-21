@@ -17,7 +17,7 @@ namespace DiscordBot.Commands
 
         [Command("register")]
         [Description("Register your gameserver with ID and Game")]
-        [RequireDirectMessage]
+        [RequireDirectMessage, Priority(10)]
         public async Task RegisterCommand(CommandContext ctx, [Description("Your gameservers custom ID")] string serverId, [Description("The game of your server.")] string gameIdentification)
         {
             await ctx.TriggerTypingAsync();
@@ -35,8 +35,13 @@ namespace DiscordBot.Commands
                     .Build())
                 .SendAsync(ctx.Channel);
             });
+        }
 
-            
+        [Command("register")]
+        [RequireDirectMessage, Priority(-1)]
+        public async Task RegisterTooFewArgsCommand(CommandContext ctx, [RemainingText] string rest)
+        {
+            await ctx.RespondAsync($"Invalid number of arguments! Type '**{ctx.Prefix}help {ctx.Command.Parent.Name} {ctx.Command.Name}**' for more info.");
         }
 
         [Command("list-games")]
@@ -51,7 +56,8 @@ namespace DiscordBot.Commands
             {
                 message += game + ", ";
             }
-            message = message.Substring(0, message.Length - 2);
+            if(message.Length > 1)
+                message = message.Substring(0, message.Length - 2);
 
             var msg = await new DiscordMessageBuilder()
                 .AddEmbed(new DiscordEmbedBuilder()
