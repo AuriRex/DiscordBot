@@ -2,9 +2,11 @@
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
+using Nekos.Net.Endpoints;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,6 +18,18 @@ namespace DiscordBot.Commands
     {
         public NekosDotLifeManager NekosManager { private get; set; }
         public Random Random { private get; set; }
+
+        private static string[] sfwExceptions = new string[] {
+                SfwEndpoint.Lizard.ToString()
+        };
+
+        private static string[] nsfwExceptions = new string[] {
+                NsfwEndpoint.NsfwAvatar.ToString(),
+                NsfwEndpoint.NsfwNekoGif.ToString(),
+                /* The next few characters have been put into quarantine, please stay away. */ NsfwEndpoint.Blowjob.ToString(), /* End of quarantine zone. */
+                NsfwEndpoint.Lewd_K.ToString(),
+                NsfwEndpoint.Lewd_Kemo.ToString()
+        };
 
         [Command("anime")]
         [Description("Anime image or gif")]
@@ -31,7 +45,7 @@ namespace DiscordBot.Commands
             _ = Task.Run(async () => {
                 Log.Logger.Information($"asking nekos.life for [{endpoint}]");
 
-                var result = await NekosManager.GetAsync<Nekos.Net.Endpoints.SfwEndpoint>(endpoint, Nekos.Net.Endpoints.SfwEndpoint.Poke.ToString());
+                var result = await NekosManager.GetAsync<SfwEndpoint>(endpoint, SfwEndpoint.Poke.ToString());
 
                 var embed = new DiscordEmbedBuilder()
                     .WithColor(DiscordColor.Purple)
@@ -45,7 +59,7 @@ namespace DiscordBot.Commands
         [Command("anime")]
         public async Task NekoCommand(CommandContext ctx)
         {
-            var all = NekosManager.GetAllEnpoints<Nekos.Net.Endpoints.SfwEndpoint>();
+            var all = NekosManager.GetAllEnpoints<SfwEndpoint>().Except(sfwExceptions).ToArray();
 
             await NekoCommand(ctx, all[Random.Next(0, all.Length)]);
         }
@@ -64,7 +78,7 @@ namespace DiscordBot.Commands
             _ = Task.Run(async () => {
                 Log.Logger.Information($"asking nekos.life for (NSFW) [{endpoint}]");
 
-                var result = await NekosManager.GetAsync<Nekos.Net.Endpoints.NsfwEndpoint>(endpoint, Nekos.Net.Endpoints.NsfwEndpoint.Classic.ToString());
+                var result = await NekosManager.GetAsync<NsfwEndpoint>(endpoint, NsfwEndpoint.Classic.ToString());
 
                 var embed = new DiscordEmbedBuilder()
                     .WithColor(DiscordColor.Purple)
@@ -80,7 +94,7 @@ namespace DiscordBot.Commands
         [RequireNsfw]
         public async Task LewdNekoCommand(CommandContext ctx)
         {
-            var all = NekosManager.GetAllEnpoints<Nekos.Net.Endpoints.NsfwEndpoint>();
+            var all = NekosManager.GetAllEnpoints<NsfwEndpoint>().Except(nsfwExceptions).ToArray();
 
             await LewdNekoCommand(ctx, all[Random.Next(0, all.Length)]);
         }
@@ -90,14 +104,15 @@ namespace DiscordBot.Commands
         [Description("Lists all the available endpoints")]
         public async Task EndpointsCommand(CommandContext ctx)
         {
-            var all = NekosManager.GetAllEnpoints<Nekos.Net.Endpoints.SfwEndpoint>();
+            var all = NekosManager.GetAllEnpoints<SfwEndpoint>(); // No endpoint exceptions here 'cause Lizards are dope :sunglasses:
 
             string msg = string.Empty;
             foreach(string str in all)
             {
                 msg += str + ", ";
             }
-            msg = msg.Substring(0, msg.Length - 2);
+            if(msg.Length > 1)
+                msg = msg.Substring(0, msg.Length - 2);
 
             await ctx.RespondAsync(msg);
         }
@@ -108,14 +123,15 @@ namespace DiscordBot.Commands
         [RequireNsfw]
         public async Task NsfwEndpointsCommand(CommandContext ctx)
         {
-            var all = NekosManager.GetAllEnpoints<Nekos.Net.Endpoints.NsfwEndpoint>();
+            var all = NekosManager.GetAllEnpoints<NsfwEndpoint>().Except(nsfwExceptions);
 
             string msg = string.Empty;
             foreach (string str in all)
             {
                 msg += str + ", ";
             }
-            msg = msg.Substring(0, msg.Length - 2);
+            if(msg.Length > 1)
+                msg = msg.Substring(0, msg.Length - 2);
 
             await ctx.RespondAsync(msg);
         }
