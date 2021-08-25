@@ -26,11 +26,29 @@ namespace DiscordBot
 
         internal static DiscordClient DiscordClientInstance { get; private set; }
         private static Config ConfigInstance { get; set; }
+        private static PluginManager PluginManager { get; set; }
 
         static void Main(string[] args)
         {
+            Init();
+
+            LoadPlugins();
+
+            MainAsync().GetAwaiter().GetResult();
+        }
+
+        private static void LoadPlugins()
+        {
+            PluginManager.LogAction = Log.Logger.Information;
+            PluginManager.LoadPlugins("./data/plugins/");
+        }
+
+        private static void Init()
+        {
             var process = Process.GetCurrentProcess();
             process.EnableRaisingEvents = true;
+
+            PluginManager = new PluginManager();
 
             Log.Logger = new LoggerConfiguration()
                 .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level}] {Message:lj}{NewLine}{Exception}")
@@ -42,7 +60,9 @@ namespace DiscordBot
                 DiscordClientInstance?.DisconnectAsync();
                 Log.Logger.Information($"Saving Config ... [{Path.GetFullPath(ConfigLocation)}]");
                 SaveJSON(ConfigInstance, ConfigLocation);
+#if DEBUG
                 Task.Delay(1000).Wait();
+#endif
                 process.Kill();
             };
 
@@ -63,9 +83,6 @@ namespace DiscordBot
                 SaveJSON(cfg, ConfigLocation);
             }
             ConfigInstance = cfg;
-
-
-            MainAsync().GetAwaiter().GetResult();
         }
 
         static async Task MainAsync()
@@ -122,7 +139,9 @@ namespace DiscordBot
 
             if (ConfigInstance.UseTextPrefix)
                 cmdConf.StringPrefixes = ConfigInstance.Prefixes;
-            cmdConf.Services = services.BuildServiceProvider();
+            var serviceProvider = services.BuildServiceProvider();
+            cmdConf.Services = serviceProvider;
+
 
             var commands = discord.UseCommandsNext(cmdConf);
 
@@ -149,6 +168,15 @@ namespace DiscordBot
 
             await discord.ConnectAsync();
             Program.DiscordClientInstance = discord;
+
+            var comManager = serviceProvider.GetService<CommunicationsManager>();
+
+
+            PluginManager.CommunicationServiceRegisteredEvent += comManager.RegisterService;
+
+            PluginManager.ExecutePlugins();
+
+
             await Task.Delay(-1);
         }
 

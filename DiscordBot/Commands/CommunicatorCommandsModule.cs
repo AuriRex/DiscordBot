@@ -49,7 +49,7 @@ namespace DiscordBot.Commands
         public async Task ListGamesCommand(CommandContext ctx)
         {
 
-            List<string> allGames = ComManager.ListAllGames();
+            List<string> allGames = ComManager.ListAllRegisteredServices();
 
             string message = string.Empty;
             foreach(var game in allGames)

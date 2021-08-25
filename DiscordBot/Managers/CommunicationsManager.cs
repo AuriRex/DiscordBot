@@ -1,5 +1,6 @@
 ﻿using Communicator.Net;
 using Communicator.Packets;
+using DiscordBot.Events;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -23,10 +24,12 @@ namespace DiscordBot.Managers
             }
         }
 
+        private Dictionary<string, PacketSerializer> RegisteredCommunicationSevices = new Dictionary<string, PacketSerializer>();
+
         public CommunicationsManager()
         {
             CommunicatorServer = new Server();
-            CommunicatorServer.PacketSerializer.RegisterPacket<MyCoolCustomEventPacket>();
+            CommunicatorServer.RegisterCustomPacket<MyCoolCustomEventPacket>();
             CommunicatorServer.LogAction = (s) => { Log.Logger.Information($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ErrorLogAction = (s) => { Log.Logger.Error($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ClientConnectedEvent += CommunicatorServer_ClientConnectedEvent;
@@ -35,6 +38,8 @@ namespace DiscordBot.Managers
         private static void CommunicatorServer_ClientConnectedEvent(Communicator.Net.EventArgs.ClientConnectedEventArgs e)
         {
             Log.Logger.Information($"A Client has connected: {e.ServerID} Game:{e.GameName}");
+
+
 
             e.Client.DisconnectedEvent += Client_DisconnectedEvent;
             e.Client.PacketReceivedEvent += Client_PacketReceivedEvent;
@@ -58,7 +63,7 @@ namespace DiscordBot.Managers
             client.DisconnectedEvent -= Client_DisconnectedEvent;
         }
 
-        public List<string> ListAllGames()
+        public List<string> ListAllRegisteredServices()
         {
             // TODO
             return new List<string>();
@@ -68,6 +73,12 @@ namespace DiscordBot.Managers
         internal void SetHostname(string hostname)
         {
 
+        }
+
+        internal void RegisterService(CommunicationServiceRegisteredArgs args)
+        {
+            if (RegisteredCommunicationSevices.ContainsKey(args.ServiceIdentification)) throw new ArgumentException($"Tried to add duplicate service with id '{args.ServiceIdentification}'!");
+            RegisteredCommunicationSevices.Add(args.ServiceIdentification, args.PacketSerializer);
         }
     }
 }

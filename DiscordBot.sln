@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiscordBot", "DiscordBot\Di
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Communicator", "..\Communicator\Communicator\Communicator.csproj", "{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscordBotPluginBase", "DiscordBotPluginBase\DiscordBotPluginBase.csproj", "{4645AE86-2359-4167-8534-247E027C6A43}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

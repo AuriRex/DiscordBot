@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Communicator\Communicator\Communicator.csproj" />
+    <ProjectReference Include="..\DiscordBotPluginBase\DiscordBotPluginBase.csproj" />
   </ItemGroup>
 
 </Project>
