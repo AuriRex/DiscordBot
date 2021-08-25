@@ -81,7 +81,8 @@ namespace DiscordBot.Managers
                 plugin.Register(ps);
                 CommunicationServiceRegisteredEvent?.Invoke(new CommunicationServiceRegisteredArgs {
                     ServiceIdentification = plugin.GameIdentification,
-                    PacketSerializer = ps
+                    PacketSerializer = ps,
+                    Plugin = plugin
                 });
             }
         }

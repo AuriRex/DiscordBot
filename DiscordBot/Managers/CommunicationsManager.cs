@@ -1,6 +1,8 @@
 ﻿using Communicator.Net;
 using Communicator.Packets;
 using DiscordBot.Events;
+using DiscordBot.Models;
+using DiscordBot.Models.Database;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -10,8 +12,13 @@ using static DiscordBot.Managers.CommunicationsManager.MyCoolCustomEventPacket;
 namespace DiscordBot.Managers
 {
     [Attributes.AutoDI.Singleton]
-    public class CommunicationsManager
+    public partial class CommunicationsManager
     {
+        public ComAuthService CustomAuthService { private get; set; }
+        public DataBaseManager DBManager { private get; set; }
+
+        public const string kComData = "communication_manager_data";
+
         private static Server CommunicatorServer { get; set; }
 
         public class MyCoolCustomEventPacket : BasePacket<CustomEventData>
@@ -24,15 +31,36 @@ namespace DiscordBot.Managers
             }
         }
 
-        private Dictionary<string, PacketSerializer> RegisteredCommunicationSevices = new Dictionary<string, PacketSerializer>();
+        private Dictionary<string, ComServiceContainer> RegisteredCommunicationSevices = new Dictionary<string, ComServiceContainer>();
 
         public CommunicationsManager()
         {
+            
+        }
+
+        public void Initialize()
+        {
+            CustomAuthService.LogAction = Log.Logger.Information;
             CommunicatorServer = new Server();
             CommunicatorServer.RegisterCustomPacket<MyCoolCustomEventPacket>();
             CommunicatorServer.LogAction = (s) => { Log.Logger.Information($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ErrorLogAction = (s) => { Log.Logger.Error($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ClientConnectedEvent += CommunicatorServer_ClientConnectedEvent;
+            CommunicatorServer.AuthentificationService = CustomAuthService;
+        }
+
+        public bool RegisterServer(string serverId, string serviceIdentification, ulong guildId, ulong channelId)
+        {
+            return CustomAuthService.RegisterServer(serverId, serviceIdentification, guildId, channelId);
+        }
+
+        public (string hostname, int port) GetHostInfo()
+        {
+            var comData = DBManager.GetFirstFromCollection<DBComData>(kComData);
+
+            if (comData == null) return ("Unset!!", 0);
+
+            return (comData.Hostname, comData.Port);
         }
 
         private static void CommunicatorServer_ClientConnectedEvent(Communicator.Net.EventArgs.ClientConnectedEventArgs e)
@@ -65,20 +93,26 @@ namespace DiscordBot.Managers
 
         public List<string> ListAllRegisteredServices()
         {
-            // TODO
-            return new List<string>();
+            return new List<string>(RegisteredCommunicationSevices.Keys);
         }
 
-        // TODO: set hostname in db that gets displayed to users using the register command
-        internal void SetHostname(string hostname)
+        internal void SetHostname(string hostname, int port)
         {
+            var comData = DBManager.GetFirstFromCollection<DBComData>(kComData);
 
+            comData = comData ?? new DBComData();
+
+            comData.Hostname = hostname;
+            comData.Port = port;
+
+            DBManager.InsertOrUpdate(comData, kComData);
         }
 
         internal void RegisterService(CommunicationServiceRegisteredArgs args)
         {
             if (RegisteredCommunicationSevices.ContainsKey(args.ServiceIdentification)) throw new ArgumentException($"Tried to add duplicate service with id '{args.ServiceIdentification}'!");
-            RegisteredCommunicationSevices.Add(args.ServiceIdentification, args.PacketSerializer);
+            Log.Logger.Information($"[{nameof(CommunicationsManager)}] ServiceId '{args.ServiceIdentification}' has been registered!");
+            RegisteredCommunicationSevices.Add(args.ServiceIdentification, new ComServiceContainer(args));
         }
     }
 }

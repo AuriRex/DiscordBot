@@ -5,6 +5,7 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using LiteDB;
 using Serilog;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -23,15 +24,30 @@ namespace DiscordBot.Managers
             Log.Logger.Information($"{nameof(DataBaseManager)} initialized. [{Path.GetFullPath(fileDBPath)}]");
         }
 
-        public void InsertInto<T>(T obj, string collection)
+        public void InsertOrUpdate<T>(T obj, string collection)
         {
             // Open database (or create if doesn't exist)
             using (var db = new LiteDatabase(_fileDataBasePath))
             {
                 var col = db.GetCollection<T>(collection);
 
-                col.Insert(obj);
-                
+                if(!col.Update(obj))
+                    col.Insert(obj);   
+            }
+        }
+
+        public T GetFirstFromCollection<T>(string collection) where T : class
+        {
+            using (var db = new LiteDatabase(_fileDataBasePath))
+            {
+                var col = db.GetCollection<T>(collection);
+
+                var all = new List<T>(col.FindAll());
+
+                if(all.Count > 0)
+                    return all[0];
+
+                return null;
             }
         }
 
@@ -79,7 +95,7 @@ namespace DiscordBot.Managers
 
                 var all = col.FindAll();
 
-                if (all == null) return null;
+                if (all == null) return new List<DBT>();
 
                 return new List<DBT>(all);
             }

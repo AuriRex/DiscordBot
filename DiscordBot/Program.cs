@@ -1,21 +1,18 @@
-﻿using DiscordBot.Managers;
+﻿using DiscordBot.Attributes;
+using DiscordBot.Managers;
+using DiscordBot.Models.Configuration;
 using DSharpPlus;
 using DSharpPlus.CommandsNext;
+using DSharpPlus.CommandsNext.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
 using System.Diagnostics;
 using System.IO;
-using DiscordBot.Models.Configuration;
 using System.Reflection;
-using System.Text.Json;
 using System.Threading.Tasks;
 using static DiscordBot.Utilities;
-using DiscordBot.Attributes;
-using DSharpPlus.CommandsNext.Exceptions;
-using Communicator.Net;
-using Communicator.Packets;
 
 namespace DiscordBot
 {
@@ -166,20 +163,23 @@ namespace DiscordBot
                 return Task.CompletedTask;
             };
 
-            await discord.ConnectAsync();
-            Program.DiscordClientInstance = discord;
-
             var comManager = serviceProvider.GetService<CommunicationsManager>();
-
 
             PluginManager.CommunicationServiceRegisteredEvent += comManager.RegisterService;
 
             PluginManager.ExecutePlugins();
 
+            var comAuthService = serviceProvider.GetService<ComAuthService>();
+            // Why does this Dependency Injection not work on registered service types ;-;
+            comAuthService.DBManager = DBM;
+            comManager.DBManager = DBM;
+            comManager.CustomAuthService = comAuthService;
+            comManager.Initialize();
+
+            await discord.ConnectAsync();
+            Program.DiscordClientInstance = discord;
 
             await Task.Delay(-1);
         }
-
-        private static Task Commands_CommandExecuted(CommandsNextExtension sender, CommandExecutionEventArgs e) => throw new NotImplementedException();
     }
 }

@@ -7,7 +7,7 @@ namespace DiscordBot.Models.Database
     public class DBCommunicatorGameserverInformation : DBBaseObject
     {
         public string ServerID { get; set; } = string.Empty;
-        public string GameIdentification { get; set; } = string.Empty;
+        public string ServiceIdentification { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
         public DateTimeOffset TimeAdded { get; set; } = DateTimeOffset.Now;
         public ulong ConnectedGuildId { get; set; } = 0L;

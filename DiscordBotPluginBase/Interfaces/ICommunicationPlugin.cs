@@ -13,6 +13,6 @@ namespace DiscordBotPluginBase.Interfaces
 
         void OnPacketReceived(IPacket packet);
 
-        void OnSendDiscordMessage(string message, string username);
+        void OnDiscordMessageReceived(string message, string username);
     }
 }
