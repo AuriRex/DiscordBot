@@ -1,19 +1,20 @@
-﻿using System;
+﻿using DiscordBotPluginBase.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace DiscordBot.Models
 {
-    public class ComService : ComServiceContainer
+    public class ComService : ComServiceTemplate
     {
         public string ServerId { get; set; }
 
-        private ComService(string serverId, ComServiceContainer container) : base(container.ServiceId, container.PacketSerializer, container.Plugin)
+        private ComService(string serverId, ComServiceTemplate container) : base(container.ServiceId, Activator.CreateInstance(container.Plugin.GetType()) as ICommunicationPlugin)
         {
             ServerId = serverId;
         }
 
-        internal static ComService Create(string serverId, ComServiceContainer container)
+        internal static ComService Create(string serverId, ComServiceTemplate container)
         {
             return new ComService(serverId, container);
         }

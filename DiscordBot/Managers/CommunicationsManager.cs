@@ -3,19 +3,22 @@ using Communicator.Packets;
 using DiscordBot.Events;
 using DiscordBot.Models;
 using DiscordBot.Models.Database;
+using DSharpPlus;
+using DSharpPlus.EventArgs;
 using Serilog;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
+using System.Threading.Tasks;
 using static DiscordBot.Managers.CommunicationsManager.MyCoolCustomEventPacket;
 
 namespace DiscordBot.Managers
 {
-    [Attributes.AutoDI.Singleton]
     public partial class CommunicationsManager
     {
-        public ComAuthService CustomAuthService { private get; set; }
-        public DataBaseManager DBManager { private get; set; }
+        private ComAuthService _authService;
+        private DataBaseManager _dbManager;
+        private DiscordClient _discordClient;
 
         public const string kComData = "communication_manager_data";
 
@@ -31,61 +34,89 @@ namespace DiscordBot.Managers
             }
         }
 
-        private Dictionary<string, ComServiceContainer> RegisteredCommunicationSevices = new Dictionary<string, ComServiceContainer>();
+        private Dictionary<string, ComServiceTemplate> RegisteredCommunicationSevices = new Dictionary<string, ComServiceTemplate>();
+        private Dictionary<string, Client> ClientServerIDDictionary = new Dictionary<string, Client>();
+        private Dictionary<Client, ComService> ClientServiceDictionary = new Dictionary<Client, ComService>();
 
-        public CommunicationsManager()
+        public CommunicationsManager(ComAuthService authService, DataBaseManager dbManager, DiscordClient discordClient)
         {
-            
+            _authService = authService;
+            _dbManager = dbManager;
+            _discordClient = discordClient;
         }
 
         public void Initialize()
         {
-            CustomAuthService.LogAction = Log.Logger.Information;
+            _authService.LogAction = Log.Logger.Information;
             CommunicatorServer = new Server();
             CommunicatorServer.RegisterCustomPacket<MyCoolCustomEventPacket>();
             CommunicatorServer.LogAction = (s) => { Log.Logger.Information($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ErrorLogAction = (s) => { Log.Logger.Error($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ClientConnectedEvent += CommunicatorServer_ClientConnectedEvent;
-            CommunicatorServer.AuthentificationService = CustomAuthService;
+            CommunicatorServer.AuthentificationService = _authService;
         }
 
         public bool RegisterServer(string serverId, string serviceIdentification, ulong guildId, ulong channelId)
         {
-            return CustomAuthService.RegisterServer(serverId, serviceIdentification, guildId, channelId);
+            return _authService.RegisterServer(serverId, serviceIdentification, guildId, channelId);
         }
 
         public (string hostname, int port) GetHostInfo()
         {
-            var comData = DBManager.GetFirstFromCollection<DBComData>(kComData);
+            var comData = _dbManager.GetFirstFromCollection<DBComData>(kComData);
 
             if (comData == null) return ("Unset!!", 0);
 
             return (comData.Hostname, comData.Port);
         }
 
-        private static void CommunicatorServer_ClientConnectedEvent(Communicator.Net.EventArgs.ClientConnectedEventArgs e)
+        private void CommunicatorServer_ClientConnectedEvent(Communicator.Net.EventArgs.ClientConnectedEventArgs e)
         {
-            Log.Logger.Information($"A Client has connected: {e.ServerID} Game:{e.GameName}");
+            Log.Logger.Information($"A Client has connected: {e.ServerID} Game:{e.ServiceName}");
 
+            // e.Client.PacketSerializer
 
+            if (RegisteredCommunicationSevices.TryGetValue(e.ServiceName, out ComServiceTemplate template)) {
+                template.Plugin.Register(e.Client.PacketSerializer);
+                var serviceContainer = template.CreateNewInstance(e.ServerID);
+
+                var gci = _authService.GetGuildAndChannelIdsFor(e.ServerID, e.ServiceName);
+
+                serviceContainer.Plugin.DiscordInterface = new DiscordInterface(_discordClient, gci.guildId, gci.channelId);
+                serviceContainer.Plugin.Client = e.Client;
+
+                ClientServiceDictionary.Add(e.Client, serviceContainer);
+                ClientServerIDDictionary.Add(serviceContainer.ServerId, e.Client);
+            }
 
             e.Client.DisconnectedEvent += Client_DisconnectedEvent;
             e.Client.PacketReceivedEvent += Client_PacketReceivedEvent;
         }
 
-        private static void Client_PacketReceivedEvent(object sender, Communicator.Interfaces.IPacket e)
+        private void Client_PacketReceivedEvent(object sender, Communicator.Interfaces.IPacket e)
         {
             Client client = (Client) sender;
 
             Log.Logger.Information($"Received packet {e.GetType()} -> {(e.GetType() == typeof(MyCoolCustomEventPacket) ? ((MyCoolCustomEventPacket) e).PacketData.Message : $"{e.EventTime}")}");
 
+            if (ClientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
+            {
+                serviceContainer.Plugin.OnPacketReceived(e);
+            }
         }
 
-        private static void Client_DisconnectedEvent(Communicator.Net.EventArgs.ClientDisconnectedEventArgs e)
+        private void Client_DisconnectedEvent(Communicator.Net.EventArgs.ClientDisconnectedEventArgs e)
         {
             Client client = e.Client;
 
             Log.Logger.Information($"A client has disconnected.");
+
+            if(ClientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
+            {
+                ClientServerIDDictionary.Remove(serviceContainer.ServerId);
+            }
+            ClientServiceDictionary.Remove(client);
+            
 
             client.PacketReceivedEvent -= Client_PacketReceivedEvent;
             client.DisconnectedEvent -= Client_DisconnectedEvent;
@@ -98,21 +129,49 @@ namespace DiscordBot.Managers
 
         internal void SetHostname(string hostname, int port)
         {
-            var comData = DBManager.GetFirstFromCollection<DBComData>(kComData);
+            var comData = _dbManager.GetFirstFromCollection<DBComData>(kComData);
 
             comData = comData ?? new DBComData();
 
             comData.Hostname = hostname;
             comData.Port = port;
 
-            DBManager.InsertOrUpdate(comData, kComData);
+            _dbManager.InsertOrUpdate(comData, kComData);
         }
 
         internal void RegisterService(CommunicationServiceRegisteredArgs args)
         {
             if (RegisteredCommunicationSevices.ContainsKey(args.ServiceIdentification)) throw new ArgumentException($"Tried to add duplicate service with id '{args.ServiceIdentification}'!");
             Log.Logger.Information($"[{nameof(CommunicationsManager)}] ServiceId '{args.ServiceIdentification}' has been registered!");
-            RegisteredCommunicationSevices.Add(args.ServiceIdentification, new ComServiceContainer(args));
+            RegisteredCommunicationSevices.Add(args.ServiceIdentification, new ComServiceTemplate(args));
+        }
+
+        internal Task MessageCreated(DiscordClient sender, MessageCreateEventArgs e)
+        {
+            if (e.Channel.IsPrivate) return Task.CompletedTask;
+            if (e.Author.IsBot) return Task.CompletedTask;
+
+            _ = Task.Run(() => {
+                try
+                {
+                    var info = _authService.GetServerInfoFor(e.Channel.Id);
+
+                    if(ClientServerIDDictionary.TryGetValue(info.serverId, out Client client))
+                    {
+                        if(ClientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
+                        {
+                            serviceContainer.Plugin.OnDiscordMessageReceived(e.Message.Content, e.Author.Username, e.Author.Discriminator);
+                        }
+                    }
+                }
+                catch(Exception)
+                {
+
+                }
+            });
+
+
+            return Task.CompletedTask;
         }
     }
 }

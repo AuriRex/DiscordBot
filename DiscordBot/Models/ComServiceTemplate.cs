@@ -4,22 +4,19 @@ using DiscordBotPluginBase.Interfaces;
 
 namespace DiscordBot.Models
 {
-    public class ComServiceContainer
+    public class ComServiceTemplate
     {
         public string ServiceId { get; private set; }
-        public PacketSerializer PacketSerializer { get; private set; }
         public ICommunicationPlugin Plugin { get; private set; }
-        public ComServiceContainer(string serviceId, PacketSerializer packetSerializer, ICommunicationPlugin plugin)
+        public ComServiceTemplate(string serviceId, ICommunicationPlugin plugin)
         {
             ServiceId = serviceId;
-            PacketSerializer = packetSerializer;
             Plugin = plugin;
         }
 
-        public ComServiceContainer(CommunicationServiceRegisteredArgs args)
+        public ComServiceTemplate(CommunicationServiceRegisteredArgs args)
         {
             ServiceId = args.ServiceIdentification;
-            PacketSerializer = args.PacketSerializer;
             Plugin = args.Plugin;
         }
 

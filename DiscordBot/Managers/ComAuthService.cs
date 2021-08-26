@@ -5,17 +5,16 @@ using System.Linq;
 
 namespace DiscordBot.Managers
 {
-    [Attributes.AutoDI.Singleton]
     public class ComAuthService : IAuthentificationService
     {
-        public DataBaseManager DBManager { private get; set; }
+        private DataBaseManager _dbManager;
         public const string kServerAuthCollection = "communicator_service_auth_info";
 
         public Action<string> LogAction { get; set; }
 
-        public ComAuthService()
+        public ComAuthService(DataBaseManager dbManager)
         {
-
+            _dbManager = dbManager;
         }
 
         public bool AuthenticateGameserver(string passwordHash, string serverID, string serviceIdentification)
@@ -25,7 +24,7 @@ namespace DiscordBot.Managers
             if (string.IsNullOrEmpty(serviceIdentification)) return false;
 
 
-            var allRegistered = DBManager.GetAllInCollection<DBCommunicatorGameserverInformation>(kServerAuthCollection);
+            var allRegistered = _dbManager.GetAllInCollection<DBCommunicatorGameserverInformation>(kServerAuthCollection);
 
             if(!allRegistered.Any(x => x.ServerID == serverID && x.ServiceIdentification == serviceIdentification))
             {
@@ -42,7 +41,7 @@ namespace DiscordBot.Managers
 
                 comInfo.PasswordHash = passwordHash;
 
-                DBManager.InsertOrUpdate(comInfo, kServerAuthCollection);
+                _dbManager.InsertOrUpdate(comInfo, kServerAuthCollection);
                 LogAction?.Invoke($"Authenticated client '{serverID}'-'{serviceIdentification}' in setup mode, password hash has been saved!");
                 return true;
             }
@@ -65,14 +64,14 @@ namespace DiscordBot.Managers
 
         public bool RegisterServer(string serverId, string serviceIdentification, ulong guildId, ulong channelId)
         {
-            var allRegistered = DBManager.GetAllInCollection<DBCommunicatorGameserverInformation>(kServerAuthCollection);
+            var allRegistered = _dbManager.GetAllInCollection<DBCommunicatorGameserverInformation>(kServerAuthCollection);
 
             if (allRegistered.Any(x => x.ServerID == serverId && x.ServiceIdentification == serviceIdentification))
             {
                 return false;
             }
 
-            DBManager.InsertOrUpdate(new DBCommunicatorGameserverInformation() {
+            _dbManager.InsertOrUpdate(new DBCommunicatorGameserverInformation() {
                 ConnectedChannelId = channelId,
                 ConnectedGuildId = guildId,
                 ServerID = serverId,
@@ -80,6 +79,36 @@ namespace DiscordBot.Managers
             }, kServerAuthCollection);
 
             return true;
+        }
+
+        public (ulong guildId, ulong channelId) GetGuildAndChannelIdsFor(string serverId, string serviceIdentification)
+        {
+            var allRegistered = _dbManager.GetAllInCollection<DBCommunicatorGameserverInformation>(kServerAuthCollection);
+
+            if (allRegistered.Any(x => x.ServerID == serverId && x.ServiceIdentification == serviceIdentification))
+            {
+                var comInfo = allRegistered.First(x => x.ServerID == serverId && x.ServiceIdentification == serviceIdentification);
+
+                return (comInfo.ConnectedGuildId, comInfo.ConnectedChannelId);
+            }
+
+            throw new ArgumentException($"No auth data for '{serverId}'-'{serviceIdentification}'");
+        }
+
+        public (string serverId, string serviceId) GetServerInfoFor(ulong channelId)
+        {
+            var allRegistered = _dbManager.GetAllInCollection<DBCommunicatorGameserverInformation>(kServerAuthCollection);
+
+            if (allRegistered.Any(x => x.ConnectedChannelId == channelId))
+            {
+                var comInfo = allRegistered.First(x => x.ConnectedChannelId == channelId);
+
+                
+
+                return (comInfo.ServerID, comInfo.ServiceIdentification);
+            }
+
+            throw new ArgumentException($"No auth data for channel with id '{channelId}'!");
         }
     }
 }

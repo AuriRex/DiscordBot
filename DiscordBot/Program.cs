@@ -105,7 +105,8 @@ namespace DiscordBot
             var services = new ServiceCollection();
 
             var DBM = new DataBaseManager("./data/database.db");
-
+            var authService = new ComAuthService(DBM);
+            var comManager = new CommunicationsManager(authService, DBM, discord);
             
 
             foreach(Type t in Assembly.GetExecutingAssembly().GetTypes())
@@ -129,6 +130,8 @@ namespace DiscordBot
 
             services.AddSingleton<Config>(ConfigInstance);
             services.AddSingleton<DataBaseManager>(DBM);
+            services.AddSingleton<CommunicationsManager>(comManager);
+            services.AddSingleton<ComAuthService>(authService);
             services.AddSingleton<Random>();
 
 
@@ -163,21 +166,18 @@ namespace DiscordBot
                 return Task.CompletedTask;
             };
 
-            var comManager = serviceProvider.GetService<CommunicationsManager>();
-
             PluginManager.CommunicationServiceRegisteredEvent += comManager.RegisterService;
 
             PluginManager.ExecutePlugins();
 
-            var comAuthService = serviceProvider.GetService<ComAuthService>();
             // Why does this Dependency Injection not work on registered service types ;-;
-            comAuthService.DBManager = DBM;
-            comManager.DBManager = DBM;
-            comManager.CustomAuthService = comAuthService;
             comManager.Initialize();
+            discord.MessageCreated += comManager.MessageCreated;
 
             await discord.ConnectAsync();
             Program.DiscordClientInstance = discord;
+
+            
 
             await Task.Delay(-1);
         }
