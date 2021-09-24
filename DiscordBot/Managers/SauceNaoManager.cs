@@ -15,13 +15,22 @@ namespace DiscordBot.Managers
 
         public SauceNaoManager()
         {
-            _client = new SauceNETClient(Environment.GetEnvironmentVariable(EnvironmentVariableName));
+            string apiKey = Environment.GetEnvironmentVariable(EnvironmentVariableName);
+
+            if(string.IsNullOrWhiteSpace(apiKey))
+            {
+                Log.Logger.Warning($"{nameof(SauceNaoManager)} creation failed, no API Key provided!");
+                return;
+            }
+
+            _client = new SauceNETClient(apiKey);
 
             Log.Logger.Information($"{nameof(SauceNaoManager)} created.");
         }
 
         public async Task<SauceNET.Model.Sauce> GetSauceAsync(string imageUrl)
         {
+            if (_client == null) throw new Exception("No Client available. (API key missing?)");
             return await _client.GetSauceAsync(imageUrl);
         }
 

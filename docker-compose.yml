@@ -8,5 +8,6 @@ services:
       - "11000:11000"
     environment:
       - bot_token
+      - saucenao_api
     volumes:
       - discord-bot-data:/DiscordBot/data

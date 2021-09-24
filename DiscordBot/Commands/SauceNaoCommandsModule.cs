@@ -3,6 +3,7 @@ using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using Serilog;
+using System;
 using System.Threading.Tasks;
 
 namespace DiscordBot.Commands
@@ -26,10 +27,18 @@ namespace DiscordBot.Commands
             _ = Task.Run(async () => {
                 Log.Logger.Information($"querrying SauceNao with [{imageUrl}]");
 
-                var sauce = await SauceManager.GetSauceAsync(imageUrl);
+                SauceNET.Model.Sauce sauce = null;
+                try
+                {
+                    sauce = await SauceManager.GetSauceAsync(imageUrl);
+                }
+                catch(Exception ex)
+                {
+                    await ctx.RespondAsync($"An error occurred with image url \"{imageUrl}\": {ex}");
+                    return;
+                }
 
                 Log.Logger.Information($"Sauce aqquired: [{sauce}] -> {sauce?.Results?[0]?.SourceURL} - {sauce?.Results?[0]?.InnerSource}");
-
 
                 if (sauce == null)
                 {
