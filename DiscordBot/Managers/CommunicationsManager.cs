@@ -34,9 +34,9 @@ namespace DiscordBot.Managers
             }
         }
 
-        private Dictionary<string, ComServiceTemplate> RegisteredCommunicationSevices = new Dictionary<string, ComServiceTemplate>();
-        private Dictionary<string, Client> ClientServerIDDictionary = new Dictionary<string, Client>();
-        private Dictionary<Client, ComService> ClientServiceDictionary = new Dictionary<Client, ComService>();
+        private Dictionary<string, ComServiceTemplate> _registeredCommunicationSevices = new Dictionary<string, ComServiceTemplate>();
+        private Dictionary<string, Client> _clientServerIDDictionary = new Dictionary<string, Client>();
+        private Dictionary<Client, ComService> _clientServiceDictionary = new Dictionary<Client, ComService>();
 
         public CommunicationsManager(ComAuthService authService, DataBaseManager dbManager, DiscordClient discordClient)
         {
@@ -54,6 +54,11 @@ namespace DiscordBot.Managers
             CommunicatorServer.ErrorLogAction = (s) => { Log.Logger.Error($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ClientConnectedEvent += CommunicatorServer_ClientConnectedEvent;
             CommunicatorServer.AuthentificationService = _authService;
+        }
+
+        internal void OnApplicationClosing()
+        {
+            CommunicatorServer?.WaitStopServer();
         }
 
         public bool RegisterServer(string serverId, string serviceIdentification, ulong guildId, ulong channelId)
@@ -76,7 +81,7 @@ namespace DiscordBot.Managers
 
             // e.Client.PacketSerializer
 
-            if (RegisteredCommunicationSevices.TryGetValue(e.ServiceName, out ComServiceTemplate template)) {
+            if (_registeredCommunicationSevices.TryGetValue(e.ServiceName, out ComServiceTemplate template)) {
                 template.Plugin.Register(e.Client.PacketSerializer);
                 var serviceContainer = template.CreateNewInstance(e.ServerID);
 
@@ -85,8 +90,8 @@ namespace DiscordBot.Managers
                 serviceContainer.Plugin.DiscordInterface = new DiscordInterface(_discordClient, gci.guildId, gci.channelId);
                 serviceContainer.Plugin.Client = e.Client;
 
-                ClientServiceDictionary.Add(e.Client, serviceContainer);
-                ClientServerIDDictionary.Add(serviceContainer.ServerId, e.Client);
+                _clientServiceDictionary.Add(e.Client, serviceContainer);
+                _clientServerIDDictionary.Add(serviceContainer.ServerId, e.Client);
             }
 
             e.Client.DisconnectedEvent += Client_DisconnectedEvent;
@@ -99,7 +104,7 @@ namespace DiscordBot.Managers
 
             Log.Logger.Information($"Received packet {e.GetType()} -> {(e.GetType() == typeof(MyCoolCustomEventPacket) ? ((MyCoolCustomEventPacket) e).PacketData.Message : $"{e.EventTime}")}");
 
-            if (ClientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
+            if (_clientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
             {
                 serviceContainer.Plugin.OnPacketReceived(e);
             }
@@ -111,11 +116,11 @@ namespace DiscordBot.Managers
 
             Log.Logger.Information($"A client has disconnected.");
 
-            if(ClientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
+            if(_clientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
             {
-                ClientServerIDDictionary.Remove(serviceContainer.ServerId);
+                _clientServerIDDictionary.Remove(serviceContainer.ServerId);
             }
-            ClientServiceDictionary.Remove(client);
+            _clientServiceDictionary.Remove(client);
             
 
             client.PacketReceivedEvent -= Client_PacketReceivedEvent;
@@ -124,7 +129,7 @@ namespace DiscordBot.Managers
 
         public List<string> ListAllRegisteredServices()
         {
-            return new List<string>(RegisteredCommunicationSevices.Keys);
+            return new List<string>(_registeredCommunicationSevices.Keys);
         }
 
         internal void SetHostname(string hostname, int port)
@@ -141,9 +146,9 @@ namespace DiscordBot.Managers
 
         internal void RegisterService(CommunicationServiceRegisteredArgs args)
         {
-            if (RegisteredCommunicationSevices.ContainsKey(args.ServiceIdentification)) throw new ArgumentException($"Tried to add duplicate service with id '{args.ServiceIdentification}'!");
+            if (_registeredCommunicationSevices.ContainsKey(args.ServiceIdentification)) throw new ArgumentException($"Tried to add duplicate service with id '{args.ServiceIdentification}'!");
             Log.Logger.Information($"[{nameof(CommunicationsManager)}] ServiceId '{args.ServiceIdentification}' has been registered!");
-            RegisteredCommunicationSevices.Add(args.ServiceIdentification, new ComServiceTemplate(args));
+            _registeredCommunicationSevices.Add(args.ServiceIdentification, new ComServiceTemplate(args));
         }
 
         internal Task MessageCreated(DiscordClient sender, MessageCreateEventArgs e)
@@ -156,9 +161,9 @@ namespace DiscordBot.Managers
                 {
                     var info = _authService.GetServerInfoFor(e.Channel.Id);
 
-                    if(ClientServerIDDictionary.TryGetValue(info.serverId, out Client client))
+                    if(_clientServerIDDictionary.TryGetValue(info.serverId, out Client client))
                     {
-                        if(ClientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
+                        if(_clientServiceDictionary.TryGetValue(client, out ComService serviceContainer))
                         {
                             serviceContainer.Plugin.OnDiscordMessageReceived(e.Message.Content, e.Author.Username, e.Author.Discriminator);
                         }

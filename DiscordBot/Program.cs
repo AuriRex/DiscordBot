@@ -24,7 +24,7 @@ namespace DiscordBot
         internal static DiscordClient DiscordClientInstance { get; private set; }
         private static Config ConfigInstance { get; set; }
         private static PluginManager PluginManager { get; set; }
-
+        private static CommunicationsManager ComManager { get; set; } = null;
         static void Main(string[] args)
         {
             Init();
@@ -53,6 +53,7 @@ namespace DiscordBot
 
             Action<object, EventArgs> applicationExitAction = (sender, eventArgs) => {
                 Log.Logger.Information("Application closing ...");
+                ComManager?.OnApplicationClosing();
                 Log.Logger.Information("Disconnecting from discord ...");
                 DiscordClientInstance?.DisconnectAsync();
                 Log.Logger.Information($"Saving Config ... [{Path.GetFullPath(ConfigLocation)}]");
@@ -60,6 +61,7 @@ namespace DiscordBot
 #if DEBUG
                 Task.Delay(1000).Wait();
 #endif
+
                 process.Kill();
             };
 
@@ -106,7 +108,7 @@ namespace DiscordBot
 
             var DBM = new DataBaseManager("./data/database.db");
             var authService = new ComAuthService(DBM);
-            var comManager = new CommunicationsManager(authService, DBM, discord);
+            ComManager = new CommunicationsManager(authService, DBM, discord);
             
 
             foreach(Type t in Assembly.GetExecutingAssembly().GetTypes())
@@ -130,7 +132,7 @@ namespace DiscordBot
 
             services.AddSingleton<Config>(ConfigInstance);
             services.AddSingleton<DataBaseManager>(DBM);
-            services.AddSingleton<CommunicationsManager>(comManager);
+            services.AddSingleton<CommunicationsManager>(ComManager);
             services.AddSingleton<ComAuthService>(authService);
             services.AddSingleton<Random>();
 
@@ -166,13 +168,13 @@ namespace DiscordBot
                 return Task.CompletedTask;
             };
 
-            PluginManager.CommunicationServiceRegisteredEvent += comManager.RegisterService;
+            PluginManager.CommunicationServiceRegisteredEvent += ComManager.RegisterService;
 
             PluginManager.ExecutePlugins();
 
             // Why does this Dependency Injection not work on registered service types ;-;
-            comManager.Initialize();
-            discord.MessageCreated += comManager.MessageCreated;
+            ComManager.Initialize();
+            discord.MessageCreated += ComManager.MessageCreated;
 
             await discord.ConnectAsync();
             Program.DiscordClientInstance = discord;
