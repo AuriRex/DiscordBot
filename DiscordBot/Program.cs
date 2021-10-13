@@ -4,12 +4,15 @@ using DiscordBot.Models.Configuration;
 using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Exceptions;
+using DSharpPlus.Lavalink;
+using DSharpPlus.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using static DiscordBot.Utilities;
@@ -104,6 +107,26 @@ namespace DiscordBot
                 LoggerFactory = logFactory
             });
 
+            var lavalinkEndpoint = new ConnectionEndpoint
+            {
+                Hostname = "LavaLink", // From your server configuration.
+                Port = 2333 // From your server configuration
+            };
+
+            var lavalinkAuth = Environment.GetEnvironmentVariable("lavalink_auth");
+            
+            if(string.IsNullOrEmpty(lavalinkAuth))
+            {
+                Log.Warning($"Environment variable 'lavalink_auth' is empty, is this intentional?");
+            }
+
+            var lavalinkConfig = new LavalinkConfiguration
+            {
+                Password = lavalinkAuth, // From your server configuration.
+                RestEndpoint = lavalinkEndpoint,
+                SocketEndpoint = lavalinkEndpoint
+            };
+
             var services = new ServiceCollection();
 
             var DBM = new DataBaseManager("./data/database.db");
@@ -176,10 +199,19 @@ namespace DiscordBot
             ComManager.Initialize();
             discord.MessageCreated += ComManager.MessageCreated;
 
+            var lavalink = discord.UseLavalink();
+
             await discord.ConnectAsync();
             Program.DiscordClientInstance = discord;
-
-            
+            try
+            {
+                await lavalink.ConnectAsync(lavalinkConfig);
+            }
+            catch(Exception ex)
+            {
+                Log.Error($"An exception occured while connecting to LavaLink: {ex.Message}");
+                Log.Error($"{ex.StackTrace}");
+            }
 
             await Task.Delay(-1);
         }

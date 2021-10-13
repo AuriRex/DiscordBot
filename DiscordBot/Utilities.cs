@@ -50,6 +50,124 @@ namespace DiscordBot
             File.WriteAllText(path, jsonString);
         }
 
+        public static string TimeSpanToString(TimeSpan ts)
+        {
+            return $"{(ts.Hours > 0 ? $"{ts.Hours.ToString("00")}:" : string.Empty)}{ts.Minutes.ToString("00")}:{ts.Seconds.ToString("00")}";
+        }
+
+        public static readonly List<string> EmojiNumbersFromOneToTen = new List<string>
+        {
+            "1️⃣ ",
+            "2️⃣ ",
+            "3️⃣ ",
+            "4️⃣ ",
+            "5️⃣ ",
+            "6️⃣ ",
+            "7️⃣ ",
+            "8️⃣ ",
+            "9️⃣ ",
+            "🔟 "
+        };
+
+        /// <summary>
+        /// A very beautiful method I must say 🙃
+        /// </summary>
+        /// <param name="strings"></param>
+        /// <param name="prefix"></param>
+        /// <param name="suffix"></param>
+        /// <returns></returns>
+        public static string GetAlternatingList(List<string> strings, List<string> prefix = null, List<string> suffix = null)
+        {
+            StringBuilder output = new StringBuilder();
+            int count = 0;
+            foreach(string s in strings)
+            {
+                var cc = count;
+                if(count++ % 2 == 0)
+                {
+                    if(prefix != null && prefix.Count > cc)
+                    {
+                        output.Append(prefix[cc]);
+                    }
+                    output.Append("**");
+                    output.Append(s);
+                    output.Append("**");
+                    if (suffix != null && suffix.Count > cc)
+                    {
+                        output.Append(suffix[cc]);
+                    }
+                    output.Append("\n");
+                    continue;
+                }
+                if (prefix != null && prefix.Count > cc)
+                {
+                    output.Append(prefix[cc]);
+                }
+                output.Append(s);
+                if (suffix != null && suffix.Count > cc)
+                {
+                    output.Append(suffix[cc]);
+                }
+                output.Append("\n");
+            }
+
+            return output.ToString();
+        }
+
+        public static string GetAlternatingBar(int alternate, string a, string b)
+        {
+            if (alternate < 0) throw new ArgumentException($"{nameof(alternate)}");
+
+            StringBuilder bar = new StringBuilder();
+
+            for(int i = 0; i < alternate; i++)
+            {
+                if(i % 2 == 0)
+                {
+                    bar.Append(b);
+                    continue;
+                }
+                bar.Append(a);
+            }
+
+            return bar.ToString();
+        }
+
+        public static string GetTextProgressBar(float start, float end, float current, string charFilled, string charPosition, string charEmpty, int stringLength = 20)
+        {
+            if (stringLength < 5) throw new ArgumentException($"{nameof(stringLength)}");
+
+            StringBuilder progressBar = new StringBuilder();
+
+            var realCurrent = current - start;
+            var realEnd = end - start;
+
+            if (realEnd == 0) return "/ by 0";
+            var progressPercent = realCurrent / realEnd;
+
+            int filled = (int) Math.Round(stringLength * progressPercent);
+            int empty = (int) Math.Round(stringLength * (1-progressPercent));
+
+            if(progressPercent > 1.1f || progressPercent < 0 || filled > stringLength || empty > stringLength)
+            {
+                return "Error while creating progress bar.";
+            }
+
+            for(int i = 0; i < filled; i++)
+            {
+                progressBar.Append(charFilled);
+            }
+
+            progressBar.Append(charPosition);
+
+            for(int i = 0; i < empty - 1; i++)
+            {
+                progressBar.Append(charEmpty);
+            }
+
+            return progressBar.ToString();
+        }
+
         public static bool QuoteUnitTestsQuote()
         {
             var user1 = new DBDiscordUser()
