@@ -50,8 +50,18 @@ namespace DiscordBot
             File.WriteAllText(path, jsonString);
         }
 
-        public static string TimeSpanToString(TimeSpan ts)
+        /// <summary>
+        /// Formats a TimeSpan HH:mm:ss or mm:ss if the hours component is 0
+        /// </summary>
+        /// <param name="ts"></param>
+        /// <param name="altHoursCheckSource"></param>
+        /// <returns></returns>
+        public static string SpecialFormatTimeSpan(TimeSpan ts, TimeSpan? altHoursCheckSource = null)
         {
+            if(altHoursCheckSource.HasValue)
+            {
+                return $"{(altHoursCheckSource.Value.Hours > 0 ? $"{ts.Hours.ToString("00")}:" : string.Empty)}{ts.Minutes.ToString("00")}:{ts.Seconds.ToString("00")}";
+            }
             return $"{(ts.Hours > 0 ? $"{ts.Hours.ToString("00")}:" : string.Empty)}{ts.Minutes.ToString("00")}:{ts.Seconds.ToString("00")}";
         }
 

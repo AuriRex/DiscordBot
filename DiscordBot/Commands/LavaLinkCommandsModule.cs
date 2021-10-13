@@ -5,6 +5,7 @@ using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
 using DSharpPlus.Lavalink.Entities;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -34,20 +35,17 @@ namespace DiscordBot.Commands
 
             var lava = ctx.Client.GetLavalink();
             var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+            var conn = node.GetGuildConnection(ctx?.Member?.VoiceState?.Guild);
 
             if (conn == null)
             {
-                conn = await JoinVoice(ctx, ctx?.Member?.VoiceState?.Channel, false);
+                conn = await ConnectToVoice(ctx, ctx?.Member?.VoiceState?.Channel, false);
                 if (conn == null)
                 {
                     await ctx.RespondAsync("I'm not connected to a Voice Channel.");
                     return;
                 }
             }
-
-            conn.PlaybackFinished -= MusicQueueManager.OnPlaybackFinished;
-            conn.PlaybackFinished += MusicQueueManager.OnPlaybackFinished;
 
             LavalinkLoadResult loadResult = null;
             if(search.StartsWith("https://www.youtube.com/"))
@@ -74,26 +72,25 @@ namespace DiscordBot.Commands
 
             var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
 
-            var firstTrack = loadResultSearch.Tracks.First();
+            var track = loadResultSearch.Tracks.First();
 
             if (loadResultSearch.LoadResultType == LavalinkLoadResultType.PlaylistLoaded)
             {
                 string playlistName = loadResultSearch.PlaylistInfo.Name;
-                var otherTracks = new List<LavalinkTrack>(loadResultSearch.Tracks);
-
+                
                 string extra = string.Empty;
+
+                var timeUntil = queue.EnqueueTracks(loadResultSearch.Tracks);
 
                 if (conn.CurrentState.CurrentTrack == null)
                 {
-                    otherTracks.Remove(firstTrack);
+                    track = queue.DequeueTrack();
 
-                    await conn.PlayAsync(firstTrack);
-                    extra = $"Now playing `{firstTrack.Title}`!\n";
+                    await conn.PlayAsync(track);
+                    extra = $"Now playing `{track.Title}`!\n";
                 }
 
-                var timeUntil = queue.EnqueueTracks(otherTracks);
-
-                await ctx.RespondAsync($"{extra}Added {otherTracks.Count} from playlist `{playlistName}` to the queue!");
+                await ctx.RespondAsync($"{extra}And added **{loadResultSearch.Tracks.Count()-1}** songs from playlist `{playlistName}` to the queue! 🎵");
                 return;
             }
 
@@ -103,15 +100,15 @@ namespace DiscordBot.Commands
 
             if (conn.CurrentState.CurrentTrack != null)
             {
-                var timeUntil = queue.EnqueueTrack(firstTrack);
+                var timeUntil = queue.EnqueueTrack(track);
 
-                await ctx.RespondAsync($"Added `{firstTrack.Title}` to the queue! {(timeUntil != null ? $"Plays in about: {timeUntil.Value.Hours.ToString("00")}:{timeUntil.Value.Minutes.ToString("00")}:{timeUntil.Value.Seconds.ToString("00")}" : string.Empty)}");
+                await ctx.RespondAsync($"Added `{track.Title}` to the queue! {(timeUntil != null ? $"Plays in about: {Utilities.SpecialFormatTimeSpan(timeUntil.Value)}" : string.Empty)} 🎵");
                 return;
             }
 
-            await conn.PlayAsync(firstTrack);
+            await conn.PlayAsync(track);
 
-            await ctx.RespondAsync($"Now playing `{firstTrack.Title}`!");
+            await ctx.RespondAsync($"Now playing `{track.Title}`! 🎵");
         }
 
         [Command("shuffle")]
@@ -121,11 +118,11 @@ namespace DiscordBot.Commands
 
             if(queue.Count <= 1)
             {
-                await ctx.RespondAsync("Nothing to shuffle!");
+                await ctx.RespondAsync("There is nothing to shuffle!");
                 return;
             }
 
-            if(queue.Mode == MusicQueueManager.QueueMode.Random || queue.Mode == MusicQueueManager.QueueMode.RandomLooping)
+            if(queue.IsRandomMode)
             {
                 await ctx.RespondAsync($"No need to shuffle the Queue as it is in {queue.Mode} Mode already!");
                 return;
@@ -134,6 +131,26 @@ namespace DiscordBot.Commands
             queue.Shuffle();
 
             await ctx.RespondAsync("The Queue has been shuffled! 🎲");
+        }
+
+        [Command("queuemode")]
+        [Aliases("qm", "queue-mode")]
+        public async Task QueueMode(CommandContext ctx, string queueModeString)
+        {
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
+
+            if (queue == null) return;
+            try
+            {
+                queue.Mode = Enum.Parse<MusicQueueManager.QueueMode>(queueModeString);
+            }
+            catch(Exception _)
+            {
+                await ctx.RespondAsync($"Provided Mode doesn't exist! Available Modes are: [{string.Join(", ", Enum.GetNames(typeof(MusicQueueManager.QueueMode)))}]");
+                return;
+            }
+
+            await ctx.RespondAsync($"Switched Queue Mode to `{queue.Mode}`!");
         }
 
         [Command("queue")]
@@ -151,7 +168,7 @@ namespace DiscordBot.Commands
             var listOfStrings = new List<string>();
             int totalCharacterCount = 0;
             
-            var conn = await GetGuildConnection(ctx, false);
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx, false);
 
             TimeSpan currentTimeUntil = new TimeSpan();
 
@@ -162,9 +179,9 @@ namespace DiscordBot.Commands
 
             foreach(LavalinkTrack track in nextSongs)
             {
-                string newString = $"{track.Title} | {Utilities.TimeSpanToString(currentTimeUntil)}";
+                string newString = $"{track.Title} | {(queue.IsRandomMode ? "??:??" : Utilities.SpecialFormatTimeSpan(currentTimeUntil))}";
                 totalCharacterCount += newString.Length;
-                if (totalCharacterCount > 2000) break;
+                if (totalCharacterCount > 4000) break;
                 currentTimeUntil += track.Length;
                 listOfStrings.Add(newString);
             }
@@ -183,103 +200,33 @@ namespace DiscordBot.Commands
         [Aliases("fs")]
         public async Task ForceSkip(CommandContext ctx)
         {
-            var conn = await GetGuildConnection(ctx);
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
             var title = conn.CurrentState.CurrentTrack.Title;
             await conn.SeekAsync(conn.CurrentState.CurrentTrack.Length);
-            await ctx.RespondAsync($"Skipped `{title}`");
-        }
-
-        public async Task<LavalinkGuildConnection> GetGuildConnection(CommandContext ctx, bool respondOnErrors = true)
-        {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                if(respondOnErrors)
-                    await ctx.RespondAsync("You are not in a voice channel.");
-                return null;
-            }
-
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                if (respondOnErrors)
-                    await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return null;
-            }
-
-            if (conn.CurrentState.CurrentTrack == null)
-            {
-                if (respondOnErrors)
-                    await ctx.RespondAsync("There are no tracks loaded.");
-                return null;
-            }
-
-            return conn;
+            await ctx.RespondAsync($"Skipped `{title}` ⏩");
         }
 
         [Command("volume")]
         public async Task SetVolume(CommandContext ctx, int volume)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                await ctx.RespondAsync("You are not in a voice channel.");
-                return;
-            }
-
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
-            }
-
-            if (conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.RespondAsync("There are no tracks loaded.");
-                return;
-            }
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
             if(volume < 0 || volume > 1000)
             {
-                await ctx.RespondAsync("Volume provided is out of range! (0 - 1000)");
+                await ctx.RespondAsync("Volume provided is out of range! (0 - 1000) 🔇");
                 return;
             }
 
             await conn.SetVolumeAsync(volume);
-            await ctx.RespondAsync($"Volume set to **{volume}**!");
+            await ctx.RespondAsync($"Volume set to **{volume}**! 🔊");
         }
 
         [Command("eq-test")]
         [Hidden]
         public async Task EqTest(CommandContext ctx)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                await ctx.RespondAsync("You are not in a voice channel.");
-                return;
-            }
-
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
-            }
-
-            if (conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.RespondAsync("There are no tracks loaded.");
-                return;
-            }
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
 
             var tests = new LavalinkBandAdjustment[]
@@ -298,27 +245,7 @@ namespace DiscordBot.Commands
         [Hidden]
         public async Task EqTestReset(CommandContext ctx)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                await ctx.RespondAsync("You are not in a voice channel.");
-                return;
-            }
-
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
-            }
-
-            if (conn.CurrentState.CurrentTrack == null)
-            {
-                await ctx.RespondAsync("There are no tracks loaded.");
-                return;
-            }
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
 
             await conn.ResetEqualizerAsync();
@@ -328,41 +255,24 @@ namespace DiscordBot.Commands
         [Aliases("np", "now-playing")]
         public async Task NowPlaying(CommandContext ctx)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                await ctx.RespondAsync("You are not in a voice channel.");
-                return;
-            }
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
-            }
             var track = conn.CurrentState.CurrentTrack;
-            if (track == null)
-            {
-                await ctx.RespondAsync("There are no tracks loaded.");
-                return;
-            }
 
             var pos = conn.CurrentState.PlaybackPosition;
-            var end = conn.CurrentState.CurrentTrack.Length;
+            var end = track.Length;
 
             string progressBar = Utilities.GetTextProgressBar((float) track.Position.TotalMilliseconds, (float) end.TotalMilliseconds, (float) pos.TotalMilliseconds, "🟪", "🎶", "▪️");
-            string textProgressCurrent = $"{(end.Hours > 0 ? $"{pos.Hours.ToString("00")}:" : string.Empty)}{pos.Minutes.ToString("00")}:{pos.Seconds.ToString("00")}";
-            string textProgressEnd = $"{(end.Hours > 0 ? $"{end.Hours.ToString("00")}:" : string.Empty)}{end.Minutes.ToString("00")}:{end.Seconds.ToString("00")}";
+            string textProgressCurrent = Utilities.SpecialFormatTimeSpan(pos, end);
+            string textProgressEnd = Utilities.SpecialFormatTimeSpan(end);
             string textProgress = $"{textProgressCurrent} / {(conn.CurrentState.CurrentTrack.IsStream ? "Live 🔴" : textProgressEnd)}";
 
             var embed = new DiscordEmbedBuilder()
                 .WithTitle(track.Title)
                 .WithAuthor(track.Author)
                 .WithUrl(track.Uri)
-                .AddField($"Progress ({textProgress})", conn.CurrentState.CurrentTrack.IsStream ? Utilities.GetAlternatingBar(20, "🎵", "🎹") : progressBar);
+                .AddField($"Progress ({textProgress})", conn.CurrentState.CurrentTrack.IsStream ? Utilities.GetAlternatingBar(20, "🎵", "🎹") : progressBar)
+                .WithTimestamp(DateTime.Now);
 
             var trackString = track.Uri.ToString();
             if (trackString.Contains("youtube.com"))
@@ -382,26 +292,19 @@ namespace DiscordBot.Commands
         [Command("pause")]
         public async Task Pause(CommandContext ctx)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                await ctx.RespondAsync("You are not in a voice channel.");
-                return;
-            }
+            var conn = await GetGuildConnection(ctx);
 
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
-            }
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
 
             if (conn.CurrentState.CurrentTrack == null)
             {
                 await ctx.RespondAsync("There are no tracks loaded.");
                 return;
+            }
+
+            if(queue != null)
+            {
+                queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
             }
 
             await conn.PauseAsync();
@@ -410,24 +313,30 @@ namespace DiscordBot.Commands
         [Command("resume")]
         public async Task Resume(CommandContext ctx)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
+            var conn = await GetGuildConnection(ctx, true, true, ctx?.Member?.VoiceState?.Channel);
+
+            if(conn == null)
             {
-                await ctx.RespondAsync("You are not in a voice channel.");
+                await ctx.RespondAsync("An Error occured!");
                 return;
             }
 
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
-            {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
-            }
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
 
             if (conn.CurrentState.CurrentTrack == null)
             {
+                if(queue != null && queue.Count > 0)
+                {
+                    var track = queue.GetLastTrackLimited();
+                    if(track != null)
+                    {
+                        Log.Information($"Starting song from position: {Utilities.SpecialFormatTimeSpan(queue.LastDequeuedSongTime)}");
+                        await conn.PlayPartialAsync(track, queue.LastDequeuedSongTime, track.Length);
+                        queue.SaveLastDequeuedSongTime(new TimeSpan());
+                        await ctx.RespondAsync($"Resuming from queue with `{track.Title}`!");
+                        return;
+                    }
+                }
                 await ctx.RespondAsync("There are no tracks loaded.");
                 return;
             }
@@ -439,30 +348,8 @@ namespace DiscordBot.Commands
         [Description("Makes the bot join a voice channel")]
         public async Task Join(CommandContext ctx, DiscordChannel channel)
         {
-            if(await JoinVoice(ctx, channel, true) != null)
+            if(await ConnectToVoice(ctx, channel, true) != null)
                 await ctx.RespondAsync($"Joined {channel.Name}!");
-        }
-
-        private async Task<LavalinkGuildConnection> JoinVoice(CommandContext ctx, DiscordChannel channel, bool sendErrorMessages)
-        {
-            var lava = ctx.Client.GetLavalink();
-            if (!lava.ConnectedNodes.Any())
-            {
-                if(sendErrorMessages)
-                    await ctx.RespondAsync("The Lavalink connection is not established");
-                return null;
-            }
-
-            var node = lava.ConnectedNodes.Values.First();
-
-            if (channel?.Type != ChannelType.Voice)
-            {
-                if(sendErrorMessages)
-                    await ctx.RespondAsync("Not a valid voice channel.");
-                return null;
-            }
-
-            return await node.ConnectAsync(channel);
         }
 
         [Command("join")]
@@ -480,48 +367,98 @@ namespace DiscordBot.Commands
         }
 
         [Command("leave")]
-        [Description("Makes the bot leave a voice channel")]
-        public async Task Leave(CommandContext ctx, DiscordChannel channel)
+        public async Task Leave(CommandContext ctx)
+        {
+            var conn = await GetGuildConnection(ctx);
+
+            DiscordChannel channel = ctx?.Member?.VoiceState?.Channel;
+
+            if (channel == null || channel.Type != ChannelType.Voice || channel != conn.Channel)
+            {
+                await ctx.RespondAsync("You aren't connected to the same voice channel!");
+                return;
+            }
+
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
+
+            if (conn.CurrentState.CurrentTrack != null && queue != null)
+            {
+                queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
+            }
+
+            await conn.DisconnectAsync();
+        }
+
+        private async Task<LavalinkGuildConnection> ConnectToVoice(CommandContext ctx, DiscordChannel channel, bool sendErrorMessages)
         {
             var lava = ctx.Client.GetLavalink();
             if (!lava.ConnectedNodes.Any())
             {
-                await ctx.RespondAsync("The Lavalink connection is not established");
-                return;
+                if (sendErrorMessages)
+                    await ctx.RespondAsync("The Lavalink connection is not established");
+                return null;
             }
 
             var node = lava.ConnectedNodes.Values.First();
 
-            if (channel.Type != ChannelType.Voice)
+            if (channel?.Type != ChannelType.Voice)
             {
-                await ctx.RespondAsync("Not a valid voice channel.");
-                return;
+                if (sendErrorMessages)
+                    await ctx.RespondAsync("Not a valid voice channel.");
+                return null;
             }
 
-            var conn = node.GetGuildConnection(channel.Guild);
+            var conn = await node.ConnectAsync(channel);
+
+            MusicQueueManager.OnConnected(conn);
+
+            return conn;
+        }
+
+        public async Task<LavalinkGuildConnection> GetGuildConnection(CommandContext ctx, bool sendErrorMessages = true, bool tryToConnect = false, DiscordChannel voiceChannel = null)
+        {
+            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
+            {
+                if (sendErrorMessages)
+                    await ctx.RespondAsync("You are not in a voice channel.");
+                return null;
+            }
+
+            var lava = ctx.Client.GetLavalink();
+            var node = lava.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
             if (conn == null)
             {
-                await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                return;
+                if(tryToConnect && voiceChannel != null)
+                {
+                    conn = await ConnectToVoice(ctx, voiceChannel, sendErrorMessages);
+                    if (conn == null)
+                    {
+                        return null;
+                    }
+                    return conn;
+                }
+                if (sendErrorMessages)
+                    await ctx.RespondAsync("I'm not connected to a Voice Channel.");
+                return null;
             }
 
-            await conn.DisconnectAsync();
-            await ctx.RespondAsync($"Left {channel.Name}!");
+            return conn;
         }
 
-        [Command("leave")]
-        public async Task Leave(CommandContext ctx)
+        public async Task<LavalinkGuildConnection> GetGuildConnectionCheckTrackPlaying(CommandContext ctx, bool sendErrorMessages = true)
         {
-            DiscordChannel channel = ctx?.Member?.VoiceState?.Channel;
+            var conn = await GetGuildConnection(ctx, sendErrorMessages);
 
-            if (channel == null || channel.Type != ChannelType.Voice || (channel?.Guild != null && channel.Guild.IsUnavailable))
+            if (conn.CurrentState.CurrentTrack == null)
             {
-                await ctx.RespondAsync("You aren't connected to a voice channel!");
-                return;
+                if (sendErrorMessages)
+                    await ctx.RespondAsync("There are no tracks loaded.");
+                return null;
             }
 
-            await Leave(ctx, channel);
+            return conn;
         }
 
     }

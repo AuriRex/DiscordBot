@@ -18,6 +18,8 @@ namespace DiscordBot.Managers
 
         public QueueForGuild GetOrCreateQueueForGuild(DiscordGuild guild)
         {
+            if (guild == null) return null;
+
             if(_queueForGuild.TryGetValue(guild, out QueueForGuild qfg))
             {
                 return qfg;
@@ -26,6 +28,16 @@ namespace DiscordBot.Managers
             var newQueue = new QueueForGuild(guild);
             _queueForGuild.Add(guild, newQueue);
             return newQueue;
+        }
+
+        /// <summary>
+        /// Register all events here
+        /// </summary>
+        /// <param name="conn"></param>
+        internal void OnConnected(LavalinkGuildConnection conn)
+        {
+            conn.PlaybackFinished -= OnPlaybackFinished;
+            conn.PlaybackFinished += OnPlaybackFinished;
         }
 
         public async Task OnPlaybackFinished(LavalinkGuildConnection sender, TrackFinishEventArgs e)
@@ -67,6 +79,7 @@ namespace DiscordBot.Managers
             public QueueMode Mode { get; set; }
             public DiscordGuild Guild => _attachedGuild;
             public LavalinkTrack LastDequeuedTrack { get; private set; }
+            public TimeSpan LastDequeuedSongTime { get; private set; }
             public LavalinkTrack PeekTopTrack
             {
                 get
@@ -77,6 +90,19 @@ namespace DiscordBot.Managers
             }
 
             public int Count => _tracks.Count;
+            public bool IsRandomMode
+            {
+                get
+                {
+                    switch(Mode)
+                    {
+                        case QueueMode.Random:
+                        case QueueMode.RandomLooping:
+                            return true;
+                    }
+                    return false;
+                }
+            }
 
             private readonly DiscordGuild _attachedGuild;
             private Queue<LavalinkTrack> _tracks;
@@ -222,6 +248,10 @@ namespace DiscordBot.Managers
                 return timeUntilFirstTrack;
             }
 
+            public void SaveLastDequeuedSongTime(TimeSpan position)
+            {
+                LastDequeuedSongTime = position;
+            }
         }
 
         public enum QueueMode
@@ -231,6 +261,5 @@ namespace DiscordBot.Managers
             Random,
             RandomLooping
         }
-
     }
 }
