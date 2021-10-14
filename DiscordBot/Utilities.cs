@@ -103,36 +103,29 @@ namespace DiscordBot
             int count = 0;
             foreach (string s in strings)
             {
-                switch (count % 2)
+                if (prefixes != null && prefixes.Count > count)
                 {
-                    case 0:
-                        if (prefixes != null && prefixes.Count > count)
-                        {
-                            output.Append(prefixes[count]);
-                        }
-                        output.Append(alternateLineAddition);
-                        output.Append(s);
-                        if (!addAltLineAfterPrefixOnly)
-                            output.Append(alternateLineAddition);
-                        if (suffixes != null && suffixes.Count > count)
-                        {
-                            output.Append(suffixes[count]);
-                        }
-                        output.Append("\n");
-                        break;
-                    case 1:
-                        if (prefixes != null && prefixes.Count > count)
-                        {
-                            output.Append(prefixes[count]);
-                        }
-                        output.Append(s);
-                        if (suffixes != null && suffixes.Count > count)
-                        {
-                            output.Append(suffixes[count]);
-                        }
-                        output.Append("\n");
-                        break;
+                    output.Append(prefixes[count]);
                 }
+
+                if (count % 2 == 0)
+                {
+                    output.Append(alternateLineAddition);
+                }
+
+                output.Append(s);
+
+                if (count % 2 == 0 && !addAltLineAfterPrefixOnly)
+                {
+                    output.Append(alternateLineAddition);
+                }
+
+                if (suffixes != null && suffixes.Count > count)
+                {
+                    output.Append(suffixes[count]);
+                }
+
+                output.Append("\n");
                 count++;
             }
 
