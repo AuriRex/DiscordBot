@@ -64,6 +64,13 @@ namespace DiscordBot.Commands
             await NekoCommand(ctx, all[Random.Next(0, all.Length)]);
         }
 
+        [Command("lizard")]
+        [Description("LIZARD!!!")]
+        public async Task Lizard(CommandContext ctx)
+        {
+            await NekoCommand(ctx, SfwEndpoint.Lizard.ToString());
+        }
+
         [Command("hentai")]
         [Description("NSFW hentai image or gif")]
         [RequireNsfw]
