@@ -188,7 +188,7 @@ namespace DiscordBot.Commands
             {
                 queue.Mode = Enum.Parse<MusicQueueManager.QueueMode>(queueModeString);
             }
-            catch(Exception _)
+            catch(Exception)
             {
                 await ctx.RespondAsync($"Provided Mode doesn't exist! Available Modes are: [{string.Join(", ", Enum.GetNames(typeof(MusicQueueManager.QueueMode)))}]");
                 return;
@@ -234,7 +234,6 @@ namespace DiscordBot.Commands
                 embed.WithAuthor($"Current Song: {conn.CurrentState.CurrentTrack.Title}", conn.CurrentState.CurrentTrack.Uri.ToString());
                 currentTimeUntil = conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
             }
-
 
             if (nextSongs.Count == 0)
             {
@@ -295,6 +294,8 @@ namespace DiscordBot.Commands
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
+            if (conn == null) return;
+
             if(volume < 0 || volume > 1000)
             {
                 await ctx.RespondAsync("Volume provided is out of range! (0 - 1000) 🔇");
@@ -320,8 +321,6 @@ namespace DiscordBot.Commands
             };
 
             await conn.AdjustEqualizerAsync(tests);
-
-            
         }
 
         [Command("eq-test-reset")]
