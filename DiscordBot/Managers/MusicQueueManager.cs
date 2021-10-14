@@ -53,7 +53,7 @@ namespace DiscordBot.Managers
                     nextTrack = queue.GetLastTrackLimited();
                     if (nextTrack == null)
                     {
-                        Log.Warning($"Retring playback of Track '{queue.LastDequeuedTrack}' has failed too many times, skipping!");
+                        Log.Warning($"Retring playback of Track '{queue.LastDequeuedTrack?.Title}' has failed too many times, skipping!");
                     }
                 }
                 
@@ -119,7 +119,7 @@ namespace DiscordBot.Managers
             /// <returns>The previously dequeued Track</returns>
             public LavalinkTrack GetLastTrackLimited()
             {
-                if(CurrentErrorRetryCount >= MaxErrorRetry)
+                if(CurrentErrorRetryCount >= MaxErrorRetry-1)
                 {
                     CurrentErrorRetryCount = 0;
                     return null;
@@ -133,11 +133,16 @@ namespace DiscordBot.Managers
             /// <summary>
             /// Get the next Track to play<br/>
             /// The different queue modes are handled by this.
+            /// Returns null if the queue is empty!
             /// </summary>
             /// <returns>The next Track</returns>
             public LavalinkTrack DequeueTrack()
             {
                 LavalinkTrack track;
+
+                if (_tracks.Count == 0)
+                    return null;
+
                 switch (Mode)
                 {
                     case QueueMode.Looping:
