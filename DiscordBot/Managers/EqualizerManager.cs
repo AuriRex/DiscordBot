@@ -10,15 +10,45 @@ namespace DiscordBot.Managers
     [AutoDI.Singleton]
     public class EqualizerManager
     {
+        private readonly Dictionary<DiscordGuild, EQSettings> _eqSettingsForGuild = new Dictionary<DiscordGuild, EQSettings>();
 
-        private Dictionary<DiscordGuild, EQSettings> _eqSettingsForGuild;
+        public EQSettings GetOrCreateEqualizerSettingsForGuild(DiscordGuild guild)
+        {
+            if (guild == null) return null;
+
+            if (_eqSettingsForGuild.TryGetValue(guild, out EQSettings eqSettingsForGuild))
+            {
+                return eqSettingsForGuild;
+            }
+
+            var eqSettings = new EQSettings(guild);
+            _eqSettingsForGuild.Add(guild, eqSettings);
+            return eqSettings;
+        }
 
 
     }
 
+    public enum EQOffset
+    {
+        Lows = 0,
+        Mids = 5,
+        Highs = 10
+    }
+
     public class EQSettings
     {
+        public DiscordGuild Guild => _guild;
+
+        public int Volume { get; set; }
+
         private float[] _bandValues = new float[15];
+        private readonly DiscordGuild _guild;
+
+        public EQSettings(DiscordGuild guild)
+        {
+            _guild = guild;
+        }
 
         public void SetBand(int band, float value)
         {
@@ -47,6 +77,24 @@ namespace DiscordBot.Managers
             }
 
             return bands;
+        }
+
+        public int[] GetBandsAsInts()
+        {
+            var bands = new int[_bandValues.Length];
+            for (int i = 0; i < _bandValues.Length; i++)
+            {
+                bands[i] = (int) (_bandValues[i] * 20);
+            }
+            return bands;
+        }
+
+        public void SetBandsFromInts(int[] bands)
+        {
+            for (int i = 0; i < _bandValues.Length; i++)
+            {
+                _bandValues[i] = (float) (bands[i] / 20f);
+            }
         }
     }
 }

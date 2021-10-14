@@ -290,11 +290,13 @@ namespace DiscordBot.Commands
         }
 
         [Command("volume")]
-        public async Task SetVolume(CommandContext ctx, int volume)
+        public async Task Volume(CommandContext ctx, [Description("Volume between 0 and 1000")] int volume)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
             if (conn == null) return;
+
+            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
 
             if(volume < 0 || volume > 1000)
             {
@@ -302,8 +304,22 @@ namespace DiscordBot.Commands
                 return;
             }
 
+            eqsettings.Volume = volume;
+
             await conn.SetVolumeAsync(volume);
             await ctx.RespondAsync($"Volume set to **{volume}**! 🔊");
+        }
+
+        [Command("volume")]
+        public async Task Volume(CommandContext ctx)
+        {
+            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
+
+            if (conn == null) return;
+
+            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
+
+            await ctx.RespondAsync($"Current Volume is at **{eqsettings.Volume}**! 🔊");
         }
 
         [Command("eq-test")]
