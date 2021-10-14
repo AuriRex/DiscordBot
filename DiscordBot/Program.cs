@@ -198,6 +198,7 @@ namespace DiscordBot
             // Why does this Dependency Injection not work on registered service types ;-;
             ComManager.Initialize();
             discord.MessageCreated += ComManager.MessageCreated;
+            discord.ComponentInteractionCreated += InteractionHandler.ComponentInteractionCreated;
 
             var lavalink = discord.UseLavalink();
 

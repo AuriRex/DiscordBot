@@ -322,11 +322,44 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync($"Current Volume is at **{eqsettings.Volume}**! 🔊");
         }
 
+        [Command("button-test")]
+        public async Task ButtonTest(CommandContext ctx)
+        {
+            /*var builder = new DiscordMessageBuilder()
+                .WithContent("This message has buttons! Pretty neat innit?");
+*/
+            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
+
+            eqsettings.SetBandsFromInts(new int[] {
+                0,
+                1,
+                2,
+                3,
+                4,
+                3,
+                2,
+                1,
+                0,
+                -1,
+                -2,
+                -3,
+                -4,
+                -5,
+                -3
+            });
+
+            var builder = InteractionHandler.BuildEQSettingsMessageWithComponents(eqsettings, EQOffset.Lows);
+
+            await ctx.RespondAsync(builder);
+        }
+
         [Command("eq-test")]
         [Hidden]
         public async Task EqTest(CommandContext ctx)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
+
+            var equalizer = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
 
 
             var tests = new LavalinkBandAdjustment[]
