@@ -7,6 +7,8 @@ using System.Reflection;
 using System.Text;
 using DiscordBot.Models.Database.Discord;
 using System.Text.Json;
+using DSharpPlus.Entities;
+using DSharpPlus.CommandsNext;
 
 namespace DiscordBot
 {
@@ -51,18 +53,21 @@ namespace DiscordBot
         }
 
         /// <summary>
-        /// Formats a TimeSpan HH:mm:ss or mm:ss if the hours component is 0
+        /// Formats a TimeSpan HH:mm:ss or mm:ss if the hours component is 0<br/>
+        /// Uses <paramref name="altHoursCheckSource"/>'s hours component if provided.
         /// </summary>
-        /// <param name="ts"></param>
-        /// <param name="altHoursCheckSource"></param>
+        /// <param name="ts">TimeSpan to format</param>
+        /// <param name="altHoursCheckSource">Hour component override</param>
         /// <returns></returns>
         public static string SpecialFormatTimeSpan(TimeSpan ts, TimeSpan? altHoursCheckSource = null)
         {
-            if(altHoursCheckSource.HasValue)
+            if (ts.Days > 0 || (altHoursCheckSource.HasValue && altHoursCheckSource.Value.Days > 0))
+                return $"{ts.Days} Day{(ts.Days > 1 ? "s" : string.Empty)} and {ts.ToString("hh':'mm':'ss")}";
+            if (ts.Hours > 0 || (altHoursCheckSource.HasValue && altHoursCheckSource.Value.Hours > 0))
             {
-                return $"{(altHoursCheckSource.Value.Hours > 0 ? $"{ts.Hours.ToString("00")}:" : string.Empty)}{ts.Minutes.ToString("00")}:{ts.Seconds.ToString("00")}";
+                return ts.ToString("hh':'mm':'ss");
             }
-            return $"{(ts.Hours > 0 ? $"{ts.Hours.ToString("00")}:" : string.Empty)}{ts.Minutes.ToString("00")}:{ts.Seconds.ToString("00")}";
+            return ts.ToString("mm':'ss");
         }
 
         public static readonly List<string> EmojiNumbersFromOneToTen = new List<string>
@@ -80,45 +85,55 @@ namespace DiscordBot
         };
 
         /// <summary>
-        /// A very beautiful method I must say 🙃
+        /// example:<br/>
+        /// [prefix]**string**[suffix]\n<br/>
+        /// [prefix]string[suffix]\n<br/>
+        /// [prefix]**string**[suffix]\n<br/>
+        /// [prefix]string[suffix]\n
         /// </summary>
         /// <param name="strings"></param>
-        /// <param name="prefix"></param>
-        /// <param name="suffix"></param>
+        /// <param name="prefixes"></param>
+        /// <param name="suffixes"></param>
+        /// <param name="alternateLineAddition"></param>
+        /// <param name="addAltLineAfterPrefixOnly"></param>
         /// <returns></returns>
-        public static string GetAlternatingList(List<string> strings, List<string> prefix = null, List<string> suffix = null)
+        public static string GetListAsAlternatingStringWithLinebreaks(List<string> strings, List<string> prefixes = null, List<string> suffixes = null, string alternateLineAddition = "**", bool addAltLineAfterPrefixOnly = false)
         {
             StringBuilder output = new StringBuilder();
             int count = 0;
-            foreach(string s in strings)
+            foreach (string s in strings)
             {
-                var cc = count;
-                if(count++ % 2 == 0)
+                switch (count % 2)
                 {
-                    if(prefix != null && prefix.Count > cc)
-                    {
-                        output.Append(prefix[cc]);
-                    }
-                    output.Append("**");
-                    output.Append(s);
-                    output.Append("**");
-                    if (suffix != null && suffix.Count > cc)
-                    {
-                        output.Append(suffix[cc]);
-                    }
-                    output.Append("\n");
-                    continue;
+                    case 0:
+                        if (prefixes != null && prefixes.Count > count)
+                        {
+                            output.Append(prefixes[count]);
+                        }
+                        output.Append(alternateLineAddition);
+                        output.Append(s);
+                        if (!addAltLineAfterPrefixOnly)
+                            output.Append(alternateLineAddition);
+                        if (suffixes != null && suffixes.Count > count)
+                        {
+                            output.Append(suffixes[count]);
+                        }
+                        output.Append("\n");
+                        break;
+                    case 1:
+                        if (prefixes != null && prefixes.Count > count)
+                        {
+                            output.Append(prefixes[count]);
+                        }
+                        output.Append(s);
+                        if (suffixes != null && suffixes.Count > count)
+                        {
+                            output.Append(suffixes[count]);
+                        }
+                        output.Append("\n");
+                        break;
                 }
-                if (prefix != null && prefix.Count > cc)
-                {
-                    output.Append(prefix[cc]);
-                }
-                output.Append(s);
-                if (suffix != null && suffix.Count > cc)
-                {
-                    output.Append(suffix[cc]);
-                }
-                output.Append("\n");
+                count++;
             }
 
             return output.ToString();
@@ -176,6 +191,11 @@ namespace DiscordBot
             }
 
             return progressBar.ToString();
+        }
+
+        public static void EmbedWithUserAuthor(DiscordEmbedBuilder embed, CommandContext ctx)
+        {
+            embed.WithAuthor($"{ctx.User.Username}#{ctx.User.Discriminator}", ctx.User.AvatarUrl, ctx.User.AvatarUrl);
         }
 
         public static bool QuoteUnitTestsQuote()

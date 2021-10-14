@@ -105,13 +105,18 @@ namespace DiscordBot.Managers
             }
 
             private readonly DiscordGuild _attachedGuild;
-            private Queue<LavalinkTrack> _tracks;
+            private readonly Queue<LavalinkTrack> _tracks;
+
             public QueueForGuild(DiscordGuild guild)
             {
                 _attachedGuild = guild;
                 _tracks = new Queue<LavalinkTrack>();
             }
 
+            /// <summary>
+            /// Get the last played Track again but returns null after calling this function <see cref="MaxErrorRetry"/> times without dequeueing a new track.
+            /// </summary>
+            /// <returns>The previously dequeued Track</returns>
             public LavalinkTrack GetLastTrackLimited()
             {
                 if(CurrentErrorRetryCount >= MaxErrorRetry)
@@ -125,6 +130,11 @@ namespace DiscordBot.Managers
                 return LastDequeuedTrack;
             }
 
+            /// <summary>
+            /// Get the next Track to play<br/>
+            /// The different queue modes are handled by this.
+            /// </summary>
+            /// <returns>The next Track</returns>
             public LavalinkTrack DequeueTrack()
             {
                 LavalinkTrack track;
@@ -192,59 +202,45 @@ namespace DiscordBot.Managers
             }
 
             /// <summary>
-            /// Total play time of the queue or null if it's soonTM, a moment in time between now and the heatdeath of the universe.
+            /// Total play time of the queue.
             /// </summary>
             /// <returns></returns>
-            public TimeSpan? GetTotalPlayTime()
+            public TimeSpan GetTotalPlayTime()
             {
-                switch (Mode)
+                float totalPlayTime = 0f;
+                foreach (LavalinkTrack track in _tracks)
                 {
-                    case QueueMode.Random:
-                    case QueueMode.RandomLooping:
-                        return null;
-                    default:
-                    case QueueMode.Default:
-                    case QueueMode.Looping:
-                        float totalPlayTime = 0f;
-                        foreach (LavalinkTrack track in _tracks)
-                        {
-                            totalPlayTime += (float) track.Length.TotalSeconds;
-                        }
-                        return TimeSpan.FromSeconds(totalPlayTime);
+                    totalPlayTime += (float) track.Length.TotalSeconds;
                 }
-                
+                return TimeSpan.FromSeconds(totalPlayTime);
             }
 
             /// <summary>
             /// Add a Track to the queue
             /// </summary>
             /// <param name="track"></param>
-            /// <param name="returnTimeUntilPlay"></param>
-            /// <returns>Play time of the queue until this song plays<br/>null if it's going to play soonTM, a moment in time between now and the heatdeath of the universe</returns>
-            public TimeSpan? EnqueueTrack(LavalinkTrack track, bool returnTimeUntilPlay = true)
+            /// <returns>Play time of the queue until this song plays</returns>
+            public TimeSpan EnqueueTrack(LavalinkTrack track)
             {
-                TimeSpan? timeUntilPlay = null;
-                if(returnTimeUntilPlay)
-                {
-                    timeUntilPlay = GetTotalPlayTime();
-                }
+                TimeSpan timeUntilPlay = GetTotalPlayTime();
 
                 _tracks.Enqueue(track);
 
                 return timeUntilPlay;
             }
 
-            public TimeSpan? EnqueueTracks(IEnumerable<LavalinkTrack> tracks)
+            /// <summary>
+            /// Add a multiple Tracks to the queue
+            /// </summary>
+            /// <param name="tracks"></param>
+            /// <returns>Play time of the queue until the first song plays</returns>
+            public TimeSpan EnqueueTracks(IEnumerable<LavalinkTrack> tracks)
             {
-                TimeSpan? timeUntilFirstTrack = null;
+                TimeSpan timeUntilFirstTrack = GetTotalPlayTime();
                 foreach(LavalinkTrack track in tracks)
                 {
-                    if(timeUntilFirstTrack == null)
-                        timeUntilFirstTrack = EnqueueTrack(track, true);
-                    else
-                        EnqueueTrack(track, false);
+                    _tracks.Enqueue(track);
                 }
-
                 return timeUntilFirstTrack;
             }
 
@@ -256,9 +252,13 @@ namespace DiscordBot.Managers
 
         public enum QueueMode
         {
+            [AttachedStringAttribute("▶️")]
             Default,
+            [AttachedStringAttribute("🔁")]
             Looping,
+            [AttachedStringAttribute("🎲")]
             Random,
+            [AttachedStringAttribute("🔀")]
             RandomLooping
         }
     }

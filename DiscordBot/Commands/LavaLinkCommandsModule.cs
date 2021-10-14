@@ -1,4 +1,5 @@
-﻿using DiscordBot.Managers;
+﻿using DiscordBot.Attributes;
+using DiscordBot.Managers;
 using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
@@ -9,6 +10,7 @@ using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace DiscordBot.Commands
@@ -19,7 +21,7 @@ namespace DiscordBot.Commands
         public MusicQueueManager MusicQueueManager { private get; set; }
 
         [Command("play")]
-        [Description("Play something")]
+        [Description("Play a video from YouTube")]
         public async Task Play(CommandContext ctx, [RemainingText] string search)
         {
             if(search.StartsWith('<') && search.EndsWith('>'))
@@ -86,23 +88,25 @@ namespace DiscordBot.Commands
                 {
                     track = queue.DequeueTrack();
 
+                    Log.Information($"Playing '{track.Title}' in '{conn.Guild.Name}' / '{conn.Guild.Id}' from queue.");
                     await conn.PlayAsync(track);
                     extra = $"Now playing `{track.Title}`!\n";
                 }
+                else
+                {
+                    timeUntil = timeUntil + conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
+                }
 
-                await ctx.RespondAsync($"{extra}And added **{loadResultSearch.Tracks.Count()-1}** songs from playlist `{playlistName}` to the queue! 🎵");
+                await ctx.RespondAsync($"{extra}Added **{loadResultSearch.Tracks.Count()-1}** songs from playlist `{playlistName}` to the queue! 🎵");
                 return;
             }
-
-            
-
             
 
             if (conn.CurrentState.CurrentTrack != null)
             {
-                var timeUntil = queue.EnqueueTrack(track);
+                var timeUntil = queue.EnqueueTrack(track) + conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
 
-                await ctx.RespondAsync($"Added `{track.Title}` to the queue! {(timeUntil != null ? $"Plays in about: {Utilities.SpecialFormatTimeSpan(timeUntil.Value)}" : string.Empty)} 🎵");
+                await ctx.RespondAsync($"Added `{track.Title}` to the queue! {(!queue.IsRandomMode ? $"Estimated time until playback: {Utilities.SpecialFormatTimeSpan(timeUntil)}" : string.Empty)} 🎵");
                 return;
             }
 
@@ -133,8 +137,10 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync("The Queue has been shuffled! 🎲");
         }
 
-        [Command("queuemode")]
-        [Aliases("qm", "queue-mode")]
+        private static Dictionary<MusicQueueManager.QueueMode, DiscordEmoji> _queueModeReactions = null;
+
+        [Command("queue-mode")]
+        [Aliases("qm", "queuemode")]
         public async Task QueueMode(CommandContext ctx, string queueModeString)
         {
             var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
@@ -147,6 +153,42 @@ namespace DiscordBot.Commands
             catch(Exception _)
             {
                 await ctx.RespondAsync($"Provided Mode doesn't exist! Available Modes are: [{string.Join(", ", Enum.GetNames(typeof(MusicQueueManager.QueueMode)))}]");
+                return;
+            }
+
+            if(_queueModeReactions == null)
+            {
+                _queueModeReactions = new Dictionary<MusicQueueManager.QueueMode, DiscordEmoji>();
+
+                Type type = typeof(MusicQueueManager.QueueMode);
+                foreach(string name in Enum.GetNames(type))
+                {
+                    if (name != null)
+                    {
+                        FieldInfo field = type.GetField(name);
+                        if (field != null)
+                        {
+                            AttachedStringAttribute attr = Attribute.GetCustomAttribute(field, typeof(AttachedStringAttribute)) as AttachedStringAttribute;
+                            if (attr != null)
+                            {
+                                var enumValue = Enum.Parse<MusicQueueManager.QueueMode>(name);
+                                try
+                                {
+                                    _queueModeReactions.Add(enumValue, DiscordEmoji.FromUnicode(ctx.Client, attr.Value));
+                                }
+                                catch(Exception ex)
+                                {
+                                    Log.Error($"Non valid emoji attached to {type.FullName}.{enumValue}! {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if(_queueModeReactions.TryGetValue(queue.Mode, out DiscordEmoji emoji))
+            {
+                await ctx.Message.CreateReactionAsync(emoji);
                 return;
             }
 
@@ -186,9 +228,11 @@ namespace DiscordBot.Commands
                 listOfStrings.Add(newString);
             }
 
-            string description = Utilities.GetAlternatingList(listOfStrings, Utilities.EmojiNumbersFromOneToTen);
+            string description = Utilities.GetListAsAlternatingStringWithLinebreaks(listOfStrings, Utilities.EmojiNumbersFromOneToTen);
 
             embed.WithDescription(description);
+
+            embed.WithFooter($"Queue length: {Utilities.SpecialFormatTimeSpan(queue.GetTotalPlayTime())}");
 
             var message = new DiscordMessageBuilder()
                 .WithEmbed(embed.Build());
@@ -197,14 +241,25 @@ namespace DiscordBot.Commands
         }
 
         [Command("force-skip")]
-        [Aliases("fs")]
+        [Aliases("fs", "forceskip")]
         public async Task ForceSkip(CommandContext ctx)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
 
             var title = conn.CurrentState.CurrentTrack.Title;
+
+            var embed = new DiscordEmbedBuilder()
+                .WithTitle($"⏩ Skipped: `{title}`")
+                .WithUrl(conn.CurrentState.CurrentTrack.Uri)
+                .WithColor(DiscordColor.IndianRed);
+
+            //Utilities.EmbedWithUserAuthor(embed, ctx);
+
+            var message = new DiscordMessageBuilder()
+                .WithEmbed(embed.Build());
+
             await conn.SeekAsync(conn.CurrentState.CurrentTrack.Length);
-            await ctx.RespondAsync($"Skipped `{title}` ⏩");
+            await ctx.RespondAsync(message);
         }
 
         [Command("volume")]
@@ -251,6 +306,8 @@ namespace DiscordBot.Commands
             await conn.ResetEqualizerAsync();
         }
 
+        private static string _streamProgressBar = string.Empty;
+
         [Command("nowplaying")]
         [Aliases("np", "now-playing")]
         public async Task NowPlaying(CommandContext ctx)
@@ -262,6 +319,11 @@ namespace DiscordBot.Commands
             var pos = conn.CurrentState.PlaybackPosition;
             var end = track.Length;
 
+            if(string.IsNullOrEmpty(_streamProgressBar))
+            {
+                _streamProgressBar = Utilities.GetAlternatingBar(20, "🎵", "🎹");
+            }
+
             string progressBar = Utilities.GetTextProgressBar((float) track.Position.TotalMilliseconds, (float) end.TotalMilliseconds, (float) pos.TotalMilliseconds, "🟪", "🎶", "▪️");
             string textProgressCurrent = Utilities.SpecialFormatTimeSpan(pos, end);
             string textProgressEnd = Utilities.SpecialFormatTimeSpan(end);
@@ -271,13 +333,13 @@ namespace DiscordBot.Commands
                 .WithTitle(track.Title)
                 .WithAuthor(track.Author)
                 .WithUrl(track.Uri)
-                .AddField($"Progress ({textProgress})", conn.CurrentState.CurrentTrack.IsStream ? Utilities.GetAlternatingBar(20, "🎵", "🎹") : progressBar)
+                .AddField($"Progress ({textProgress})", conn.CurrentState.CurrentTrack.IsStream ? _streamProgressBar : progressBar)
                 .WithTimestamp(DateTime.Now);
 
-            var trackString = track.Uri.ToString();
-            if (trackString.Contains("youtube.com"))
+            var trackUriString = track.Uri.ToString();
+            if (trackUriString.Contains("youtube.com"))
             {
-                string ytId = trackString.Substring(trackString.Length-11, 11);
+                string ytId = trackUriString.Substring(trackUriString.Length-11, 11);
                 embed.WithThumbnail($"https://i3.ytimg.com/vi/{ytId}/maxresdefault.jpg");
                 embed.WithColor(DiscordColor.Red);
             }
