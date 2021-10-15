@@ -275,9 +275,9 @@ namespace DiscordBot.Commands
                 currentTimeUntil = conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
             }
 
-            if (nextSongs.Count == 0)
+            if (queue.Count == 0)
             {
-                embed.WithDescription("> No tracks left in the queue!\n> Add some more with the `play` command.");
+                embed.WithDescription($"> No tracks {(conn?.CurrentState?.CurrentTrack != null ? "*(except for the currently playing one)* " : string.Empty)}left in the queue!\n> Add some more with the `play` command.");
 
                 var messageEmpty = new DiscordMessageBuilder()
                     .WithEmbed(embed.Build());

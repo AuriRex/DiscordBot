@@ -140,26 +140,31 @@ namespace DiscordBot.Managers
             {
                 LavalinkTrack track;
 
-                if (_tracks.Count == 0)
-                    return null;
-
                 switch (Mode)
                 {
                     case QueueMode.Looping:
+                        if (_tracks.Count == 0)
+                            return LastDequeuedTrack;
                         track = _tracks.Dequeue();
                         _tracks.Enqueue(track);
                         break;
                     case QueueMode.RandomLooping:
+                        if (_tracks.Count == 0)
+                            return LastDequeuedTrack;
                         Shuffle();
                         track = _tracks.Dequeue();
                         _tracks.Enqueue(track);
                         break;
                     case QueueMode.Random:
+                        if (_tracks.Count == 0)
+                            return null;
                         Shuffle();
                         track = _tracks.Dequeue();
                         break;
                     default:
                     case QueueMode.Default:
+                        if (_tracks.Count == 0)
+                            return null;
                         track = _tracks.Dequeue();
                         break;
                 }
