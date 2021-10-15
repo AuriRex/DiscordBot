@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Linq;
 using Serilog;
+using System.Collections.Immutable;
+using DiscordBot.Commands;
 
 namespace DiscordBot.Managers
 {
@@ -37,6 +39,7 @@ namespace DiscordBot.Managers
             var eqSettings = EqualizerManager.Instance.GetOrCreateEqualizerSettingsForGuild(eventArgs.Guild);
             EQOffset eqOffset;
 
+
             if(customId.Equals(CustomComponentIds.EQ_DROPDOWN))
             {
                 switch (eventArgs.Interaction.Data.Values[0])
@@ -58,6 +61,20 @@ namespace DiscordBot.Managers
             else
             {
                 eqOffset = eqSettings.LastUsedOffset;
+            }
+
+
+            if (customId.Equals(CustomComponentIds.EQ_APPLY))
+            {
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset, EditingState.Saved).Build()));
+
+                var member = (DiscordMember) eventArgs.Interaction.User;
+
+                var conn = await LavaLinkCommandsModule.GetGuildConnection(client, member, null, false, member.VoiceState.Channel, null);
+
+                await conn.AdjustEqualizerAsync(eqSettings.GetBands());
+
+                return;
             }
 
             try
@@ -86,13 +103,13 @@ namespace DiscordBot.Managers
             catch(Exception ex)
             {
                 Log.Error($"An error occured while trying to handle EQSettings Interactions: {ex.Message}");
-                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset).Build()));
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset, EditingState.Canceled).Build()));
                 return;
             }
             
 
             eqSettings.LastUsedOffset = eqOffset;
-            await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder(BuildEQSettingsMessageWithComponents(eqSettings, eqOffset)));
+            await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder(BuildEQSettingsMessageWithComponents(eqSettings, eqOffset, EditingState.Editing)));
         }
 
         public const string EQS_EMBED_SELECTED_GREEN = "🟩";
@@ -110,7 +127,14 @@ namespace DiscordBot.Managers
         public const string EQS_EMBED_UP_5 = "5️⃣";
         public const string EQS_NEWLINE = "\n";
 
-        public static DiscordEmbedBuilder BuildEQSettingsEmbed(EQSettings eqSettings, EQOffset eqOffset)
+        public enum EditingState
+        {
+            Canceled,
+            Editing,
+            Saved
+        }
+
+        public static DiscordEmbedBuilder BuildEQSettingsEmbed(EQSettings eqSettings, EQOffset eqOffset, EditingState editingState)
         {
             var embed = new DiscordEmbedBuilder();
 
@@ -122,15 +146,30 @@ namespace DiscordBot.Managers
 
             ConstructEQSettingsEmbedContent(embed, eqSettings, eqOffset);
 
+            embed.WithTimestamp(DateTime.Now);
+            switch(editingState)
+            {
+                case EditingState.Canceled:
+                    embed.WithColor(DiscordColor.Gray);
+                    break;
+                case EditingState.Editing:
+                    embed.WithColor(DiscordColor.Orange);
+                    break;
+                case EditingState.Saved:
+                    embed.WithColor(DiscordColor.Green);
+                    break;
+            }
+            
+
             return embed;
         }
 
-        public static DiscordMessageBuilder BuildEQSettingsMessageWithComponents(EQSettings eqSettings, EQOffset eqOffset)
+        public static DiscordMessageBuilder BuildEQSettingsMessageWithComponents(EQSettings eqSettings, EQOffset eqOffset, EditingState editingState)
         {
             var builder = new DiscordMessageBuilder();
 
 
-            var embed = BuildEQSettingsEmbed(eqSettings, eqOffset);
+            var embed = BuildEQSettingsEmbed(eqSettings, eqOffset, editingState);
             
 
             // Collapse every 5 down 🟦
@@ -159,23 +198,37 @@ namespace DiscordBot.Managers
             
 
             builder.AddComponents(new DiscordComponent[] {
-                new DiscordButtonComponent(ButtonStyle.Primary, $"eq_frqz_up_{offset}", null, eqSettings.IsAtMax(offset), new DiscordComponentEmoji("⬆️")),
-                new DiscordButtonComponent(ButtonStyle.Success, $"eq_frqz_up_{offset+1}", null, eqSettings.IsAtMax(offset+1), new DiscordComponentEmoji("⬆️")),
-                new DiscordButtonComponent(ButtonStyle.Primary, $"eq_frqz_up_{offset+2}", null, eqSettings.IsAtMax(offset+2), new DiscordComponentEmoji("⬆️")),
-                new DiscordButtonComponent(ButtonStyle.Success, $"eq_frqz_up_{offset+3}", null, eqSettings.IsAtMax(offset+3), new DiscordComponentEmoji("⬆️")),
-                new DiscordButtonComponent(ButtonStyle.Primary, $"eq_frqz_up_{offset+4}", null, eqSettings.IsAtMax(offset+4), new DiscordComponentEmoji("⬆️"))
+                new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset}", null, eqSettings.IsAtMax(offset), new DiscordComponentEmoji("⬆️")),
+                new DiscordButtonComponent(ButtonStyle.Success, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+1}", null, eqSettings.IsAtMax(offset+1), new DiscordComponentEmoji("⬆️")),
+                new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+2}", null, eqSettings.IsAtMax(offset+2), new DiscordComponentEmoji("⬆️")),
+                new DiscordButtonComponent(ButtonStyle.Success, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+3}", null, eqSettings.IsAtMax(offset+3), new DiscordComponentEmoji("⬆️")),
+                new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+4}", null, eqSettings.IsAtMax(offset+4), new DiscordComponentEmoji("⬆️"))
             });
 
             builder.AddComponents(new DiscordComponent[] {
-                new DiscordButtonComponent(ButtonStyle.Primary, $"eq_frqz_dn_{offset}", null, eqSettings.IsAtMin(offset), new DiscordComponentEmoji("⬇️")),
-                new DiscordButtonComponent(ButtonStyle.Success, $"eq_frqz_dn_{offset+1}", null, eqSettings.IsAtMin(offset+1), new DiscordComponentEmoji("⬇️")),
-                new DiscordButtonComponent(ButtonStyle.Primary, $"eq_frqz_dn_{offset+2}", null, eqSettings.IsAtMin(offset+2), new DiscordComponentEmoji("⬇️")),
-                new DiscordButtonComponent(ButtonStyle.Success, $"eq_frqz_dn_{offset+3}", null, eqSettings.IsAtMin(offset+3), new DiscordComponentEmoji("⬇️")),
-                new DiscordButtonComponent(ButtonStyle.Primary, $"eq_frqz_dn_{offset+4}", null, eqSettings.IsAtMin(offset+4), new DiscordComponentEmoji("⬇️"))
+                new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset}", null, eqSettings.IsAtMin(offset), new DiscordComponentEmoji("⬇️")),
+                new DiscordButtonComponent(ButtonStyle.Success, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+1}", null, eqSettings.IsAtMin(offset+1), new DiscordComponentEmoji("⬇️")),
+                new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+2}", null, eqSettings.IsAtMin(offset+2), new DiscordComponentEmoji("⬇️")),
+                new DiscordButtonComponent(ButtonStyle.Success, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+3}", null, eqSettings.IsAtMin(offset+3), new DiscordComponentEmoji("⬇️")),
+                new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+4}", null, eqSettings.IsAtMin(offset+4), new DiscordComponentEmoji("⬇️"))
+            });
+
+            builder.AddComponents(new DiscordComponent[] {
+                new DiscordButtonComponent(ButtonStyle.Success, CustomComponentIds.EQ_APPLY, "Apply", false),
             });
 
             return builder;
         }
+
+        private static readonly string[] _numbers = new string[]
+        {
+            EQS_EMBED_EMPTY,
+            EQS_EMBED_UP_1,
+            EQS_EMBED_UP_2,
+            EQS_EMBED_UP_3,
+            EQS_EMBED_UP_4,
+            EQS_EMBED_UP_5
+        };
 
         private static void ConstructEQSettingsEmbedContent(DiscordEmbedBuilder embed, EQSettings eqSettings, EQOffset offset)
         {
@@ -184,18 +237,82 @@ namespace DiscordBot.Managers
 
             var bands = eqSettings.GetBandsAsInts();
 
-            if (bands.Any(b => b > 5))
+            
+            int toRemove = (bands.Max() / 5) * 5;
+            for (int row = 4; row > 0; row--)
+            {
+                for (int i = 0; i < bands.Length; i++)
+                {
+                    
+                    var val = Math.Max(bands[i] % 5 - toRemove, 0);
+                    if (val - row >= 0)
+                        builder.Append(EQS_EMBED_UP_UNCOLLAPSED);
+                    else
+                        builder.Append(EQS_EMBED_EMPTY);
+                }
+                builder.Append(EQS_NEWLINE);
+            }
+
+            var upBuilders = new List<StringBuilder>();
+
+            if (bands.Any(b => b >= 5))
             {
                 // collapse every 5 lines
+                while (bands.Any(b => b / 5 > 0))
+                {
+                    var upBuilder = new StringBuilder();
+                    for (int i = 0; i < bands.Length; i++)
+                    {
+                        if(bands[i] <= 0)
+                        {
+                            upBuilder.Append(EQS_EMBED_EMPTY);
+                            continue;
+                        }
+                        int collapse = bands[i] / 5;
+                        int rest = bands[i] % 5;
+
+                        if (collapse == 0)
+                        {
+                            upBuilder.Append(_numbers[Math.Max(rest, 0)]);
+                        }
+                        else
+                        {
+                            upBuilder.Append(EQS_EMBED_UP_5);
+                        }
+
+
+                        bands[i] = bands[i] - 5;
+                    }
+                    upBuilder.Append(EQS_NEWLINE);
+                    upBuilders.Add(upBuilder);
+                }
+
             }
-            else
+
+            upBuilders.Reverse();
+
+            foreach(var upb in upBuilders)
+            {
+                builder.Append(upb);
+            }
+
+            /*else
             {
                 // Simple 5 Lines up + 1 neutral + 5 down
-                for (int i = 0; i < 5; i++)
+                for (int row = 5; row > 0; row--)
                 {
-
+                    for (int i = 0; i < bands.Length; i++)
+                    {
+                        if (bands[i] - row >= 0)
+                            builder.Append(EQS_EMBED_UP_UNCOLLAPSED);
+                        else
+                            builder.Append(EQS_EMBED_EMPTY);
+                    }
+                    builder.Append(EQS_NEWLINE);
                 }
-            }
+            }*/
+
+            bands = eqSettings.GetBandsAsInts();
 
             /*
         EQS_EMBED_SELECTED_GREEN = "🟩";
@@ -316,6 +433,7 @@ namespace DiscordBot.Managers
             public const string EQ_INCREASE_VALUE_PREFIX = "eq_frqz_up_";
             public const string EQ_DECREASE_VALUE_PREFIX = "eq_frqz_dn_";
             public const string EQ_DROPDOWN = "eq_dropdown";
+            public const string EQ_APPLY = "eq_apply";
         }
     }
 }

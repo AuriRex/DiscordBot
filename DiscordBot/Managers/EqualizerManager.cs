@@ -49,7 +49,7 @@ namespace DiscordBot.Managers
     {
         public DiscordGuild Guild => _guild;
 
-        public int Volume { get; set; }
+        public int Volume { get; set; } = 100;
         public EQOffset LastUsedOffset { get; internal set; } = EQOffset.Lows;
 
         public const int BAND_LENGTH = 15;
