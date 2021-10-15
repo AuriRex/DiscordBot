@@ -322,6 +322,7 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync($"Current Volume is at **{eqsettings.Volume}**! 🔊");
         }
 
+        private bool test = true;
         [Command("button-test")]
         public async Task ButtonTest(CommandContext ctx)
         {
@@ -330,23 +331,28 @@ namespace DiscordBot.Commands
 */
             var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
 
-            eqsettings.SetBandsFromInts(new int[] {
-                0,
-                1,
-                2,
-                3,
-                4,
-                3,
-                2,
-                1,
-                0,
-                -1,
-                -2,
-                -3,
-                -4,
-                -5,
-                -3
-            });
+            if(test)
+            {
+                eqsettings.SetBandsFromInts(new int[] {
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    3,
+                    2,
+                    1,
+                    0,
+                    -1,
+                    -2,
+                    -3,
+                    -4,
+                    -5,
+                    -3
+                });
+                test = false;
+            }
+            
 
             var builder = InteractionHandler.BuildEQSettingsMessageWithComponents(eqsettings, EQOffset.Lows);
 
