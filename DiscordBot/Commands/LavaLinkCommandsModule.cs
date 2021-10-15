@@ -117,6 +117,46 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync($"Now playing `{track.Title}`! 🎵");
         }
 
+        [Command("last-song")]
+        [Aliases("last")]
+        public async Task LastSong(CommandContext ctx)
+        {
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
+
+            var lastTrack = queue.LastDequeuedTrack;
+
+            if(lastTrack == null)
+            {
+                await ctx.RespondAsync($"There is no last track to re-play.");
+                return;
+            }
+
+            queue.EnqueueTrack(lastTrack);
+
+            var conn = await GetGuildConnection(ctx, true, true, ctx.Member.VoiceState.Channel, MusicQueueManager);
+
+            if (conn == null) return;
+
+            if(conn.CurrentState.CurrentTrack == null)
+            {
+                var nextTrack = queue.DequeueTrack();
+
+                if(nextTrack == null)
+                {
+                    await ctx.RespondAsync($"Sorry, something went wrong.");
+                    return;
+                }
+
+                await conn.PlayAsync(nextTrack);
+
+                await ctx.RespondAsync($"Replaying last song: `{nextTrack.Title}`");
+
+                return;
+            }
+
+            await ctx.RespondAsync($"Added last played track `{lastTrack?.Title}` to the queue!");
+        }
+
         [Command("shuffle")]
         public async Task Shuffle(CommandContext ctx)
         {
@@ -324,13 +364,33 @@ namespace DiscordBot.Commands
 
         [Command("equalizer")]
         [Aliases("eq")]
-        public async Task ButtonTest(CommandContext ctx)
+        public async Task Equalizer(CommandContext ctx)
         {
             var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
             
             var builder = InteractionHandler.BuildEQSettingsMessageWithComponents(eqsettings, EQOffset.Lows, InteractionHandler.EditingState.Saved);
 
             await ctx.RespondAsync(builder);
+        }
+
+        [Command("equalizer")]
+        public async Task Equalizer(CommandContext ctx, [RemainingText] string text)
+        {
+            // TODO: add presets
+            if(text.Equals("reset", StringComparison.OrdinalIgnoreCase))
+            {
+                var conn = await GetGuildConnection(ctx);
+
+                if (conn == null) return;
+
+                await conn.ResetEqualizerAsync();
+
+                await ctx.RespondAsync("Equalizer has been reset!");
+
+                return;
+            }
+
+            await Equalizer(ctx);
         }
 
         [Command("eq-test")]

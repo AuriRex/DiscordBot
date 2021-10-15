@@ -139,6 +139,7 @@ namespace DiscordBot.Managers
             var embed = new DiscordEmbedBuilder();
 
             embed.WithTitle("Equalizer Settings");
+            embed.WithAuthor($"Volume: {eqSettings.Volume}");
             //embed.WithDescription("###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############");
 
             // POC
@@ -147,6 +148,8 @@ namespace DiscordBot.Managers
             ConstructEQSettingsEmbedContent(embed, eqSettings, eqOffset);
 
             embed.WithTimestamp(DateTime.Now);
+            embed.WithFooter("Equalizer changes may take a few seconds to take effect!");
+
             switch(editingState)
             {
                 case EditingState.Canceled:
