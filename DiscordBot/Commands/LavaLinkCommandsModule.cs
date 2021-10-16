@@ -424,8 +424,8 @@ namespace DiscordBot.Commands
 
         private static string _streamProgressBar = string.Empty;
 
-        [Command("nowplaying")]
-        [Aliases("np", "now-playing")]
+        [Command("now-playing")]
+        [Aliases("np", "nowplaying")]
         public async Task NowPlaying(CommandContext ctx)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
