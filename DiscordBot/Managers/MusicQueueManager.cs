@@ -38,6 +38,13 @@ namespace DiscordBot.Managers
         {
             conn.PlaybackFinished -= OnPlaybackFinished;
             conn.PlaybackFinished += OnPlaybackFinished;
+            conn.DiscordWebSocketClosed -= OnDiscordWebSocketException;
+            conn.DiscordWebSocketClosed += OnDiscordWebSocketException;
+        }
+
+        private async Task OnDiscordWebSocketException(LavalinkGuildConnection sender, WebSocketCloseEventArgs e)
+        {
+            Log.Warning($"{nameof(OnDiscordWebSocketException)} called!: Code:{e.Code}, Reason:{e.Reason}, Remote:{e.Remote}");
         }
 
         public async Task OnPlaybackFinished(LavalinkGuildConnection sender, TrackFinishEventArgs e)
