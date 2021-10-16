@@ -15,6 +15,7 @@ namespace DiscordBot.Commands
 
         [Command("test")]
         [Description("Does this work? :>")]
+        [RequireOwner]
         public async Task TestCommand(CommandContext ctx)
         {
             DBManager.InsertOrUpdateDiscordObject<DiscordUser, DBDiscordUser>(ctx.User, DataBaseManager.DISCORDUSER_COLLECTION);
@@ -29,6 +30,7 @@ namespace DiscordBot.Commands
 
         [Command("test")]
         [Description("Does this work? :>")]
+        [RequireOwner]
         public async Task TestCommand(CommandContext ctx, DiscordMember mention)
         {
             DBManager.InsertOrUpdateDiscordObject<DiscordUser, DBDiscordUser>(mention, DataBaseManager.DISCORDUSER_COLLECTION);
@@ -44,6 +46,7 @@ namespace DiscordBot.Commands
 
         [Command("test_all")]
         [Description("Does this work? :>")]
+        [RequireOwner]
         public async Task TestAllCommand(CommandContext ctx)
         {
             //DBManager.InsertOrUpdateDiscordObject<DiscordUser, DBDiscordUser>(ctx.User, DataBaseManager.DISCORDUSER_COLLECTION);
