@@ -1,5 +1,6 @@
 ﻿using DiscordBot.Attributes;
 using DiscordBot.Managers;
+using DiscordBot.Models.Configuration;
 using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
@@ -19,6 +20,8 @@ namespace DiscordBot.Commands
     {
         public EqualizerManager EqualizerManager { private get; set; }
         public MusicQueueManager MusicQueueManager { private get; set; }
+
+        public Config BotConfig { private get; set; }
 
         [Command("play")]
         [Description("Play a video from YouTube")]
@@ -485,6 +488,10 @@ namespace DiscordBot.Commands
                 queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
             }
 
+            var emoji = Config.GetGuildEmojiOrFallback(ctx.Client, BotConfig.CustomReactionSettings.PauseCommandReactionId, "⏸️");
+
+            await ctx.Message.CreateReactionAsync(emoji);
+
             await conn.PauseAsync();
         }
 
@@ -519,15 +526,22 @@ namespace DiscordBot.Commands
                 return;
             }
 
+            var emoji = Config.GetGuildEmojiOrFallback(ctx.Client, BotConfig.CustomReactionSettings.ResumeCommandReactionId, "▶️");
+
+            await ctx.Message.CreateReactionAsync(emoji);
+
             await conn.ResumeAsync();
         }
 
         [Command("join")]
-        [Description("Makes the bot join a voice channel")]
+        [Description("Makes the bot join a specific voice channel")]
         public async Task Join(CommandContext ctx, DiscordChannel channel)
         {
             if(await ConnectToVoice(ctx, channel, true, MusicQueueManager) != null)
+            {
                 await ctx.RespondAsync($"Joined {channel.Name}!");
+            }
+                
         }
 
         [Command("join")]
@@ -541,13 +555,19 @@ namespace DiscordBot.Commands
                 return;
             }
 
-            await Join(ctx, channel);
+            var emoji = Config.GetGuildEmojiOrFallback(ctx.Client, BotConfig.CustomReactionSettings.JoinCommandReactionId, "⤴️");
+
+            await ctx.Message.CreateReactionAsync(emoji);
+
+            await ConnectToVoice(ctx, channel, true, MusicQueueManager);
         }
 
         [Command("leave")]
         public async Task Leave(CommandContext ctx)
         {
             var conn = await GetGuildConnection(ctx);
+
+            if (conn == null) return;
 
             DiscordChannel channel = ctx?.Member?.VoiceState?.Channel;
 
@@ -563,6 +583,10 @@ namespace DiscordBot.Commands
             {
                 queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
             }
+
+            var emoji = Config.GetGuildEmojiOrFallback(ctx.Client, BotConfig.CustomReactionSettings.LeaveCommandReactionId, "👋");
+
+            await ctx.Message.CreateReactionAsync(emoji);
 
             await conn.DisconnectAsync();
         }
@@ -595,7 +619,7 @@ namespace DiscordBot.Commands
 
         private static async Task<LavalinkGuildConnection> ConnectToVoice(CommandContext ctx, DiscordChannel channel, bool sendErrorMessages, MusicQueueManager musicQueueManager)
         {
-            return await ConnectToVoice(ctx.Client, ctx.Member, ctx.Member.VoiceState.Channel, musicQueueManager, sendErrorMessages ? ctx : null);
+            return await ConnectToVoice(ctx.Client, ctx.Member, channel == null ? ctx.Member?.VoiceState?.Channel : channel, musicQueueManager, sendErrorMessages ? ctx : null);
         }
 
         public static async Task<LavalinkGuildConnection> GetGuildConnection(DiscordClient client, DiscordMember member, CommandContext ctx = null, bool tryToConnect = false, DiscordChannel voiceChannel = null, MusicQueueManager musicQueueManager = null)
