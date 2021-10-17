@@ -18,14 +18,42 @@ namespace DiscordBot.Commands
         {
             await ctx.RespondAsync($"{ctx.Member?.DisplayName} -> todo command");
 
-            
+
 
             //ctx.Channel.GetMessagesBeforeAsync();
+        }
+
+        [Command("bot-version")]
+        [Aliases("version")]
+        public async Task Version(CommandContext ctx)
+        {
+            var embed = new DiscordEmbedBuilder()
+                    .WithColor(DiscordColor.Purple)
+                    .WithTitle(ThisAssembly.Git.RepositoryUrl)
+                    .WithUrl(ThisAssembly.Git.RepositoryUrl);
+
+            embed.AddField("Version", $"{ThisAssembly.Git.SemVer.Major}.{ThisAssembly.Git.SemVer.Minor}.{ThisAssembly.Git.SemVer.Patch}", true);
+            embed.AddField("Branch", $"{ThisAssembly.Git.Branch}", true);
+            embed.AddField("Commit", $"{ThisAssembly.Git.Commit}", true);
+
+/*            if(!string.IsNullOrEmpty(ThisAssembly.Git.Tag))
+                embed.AddField("Tag", $"{ThisAssembly.Git.Tag}", true);*/
+
+            embed.AddField("Sha", $"{ThisAssembly.Git.Sha}");
+            embed.AddField("CommitDate", $"{ThisAssembly.Git.CommitDate}");
+            embed.AddField("Has Local Changes", $"{ThisAssembly.Git.IsDirty}");
+
+
+            var msg = new DiscordMessageBuilder()
+                .AddEmbed(embed.Build());
+
+            await ctx.Channel.SendMessageAsync(msg);
         }
 
         [Command("guild-info")]
         [Aliases("ginfo", "guildinfo")]
         [Description("Show Guild info")]
+        [RequireGuild]
         public async Task InfoCommand(CommandContext ctx)
         {
             var guild = ctx.Guild;

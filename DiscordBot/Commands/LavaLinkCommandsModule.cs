@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 
 namespace DiscordBot.Commands
 {
+    [RequireGuild]
     public class LavaLinkCommandsModule : BaseCommandModule
     {
         public EqualizerManager EqualizerManager { private get; set; }
