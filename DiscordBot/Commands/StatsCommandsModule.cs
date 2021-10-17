@@ -36,12 +36,19 @@ namespace DiscordBot.Commands
             embed.AddField("Branch", $"{ThisAssembly.Git.Branch}", true);
             embed.AddField("Commit", $"{ThisAssembly.Git.Commit}", true);
 
-/*            if(!string.IsNullOrEmpty(ThisAssembly.Git.Tag))
-                embed.AddField("Tag", $"{ThisAssembly.Git.Tag}", true);*/
+            /*            if(!string.IsNullOrEmpty(ThisAssembly.Git.Tag))
+                            embed.AddField("Tag", $"{ThisAssembly.Git.Tag}", true);*/
 
-            embed.AddField("Sha", $"{ThisAssembly.Git.Sha}");
-            embed.AddField("CommitDate", $"{ThisAssembly.Git.CommitDate}");
+            var commitDate = DateTime.Parse(ThisAssembly.Git.CommitDate);
+
+            embed.AddField("Full SHA Commit Hash", $"{ThisAssembly.Git.Sha}");
+
+            embed.AddField("Commit Date (UTC)", $"{commitDate.ToString("F")}");
+            
             embed.AddField("Has Local Changes", $"{ThisAssembly.Git.IsDirty}");
+
+            embed.WithFooter("Localized Commit Date");
+            embed.WithTimestamp(commitDate);
 
 
             var msg = new DiscordMessageBuilder()
