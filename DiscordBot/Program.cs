@@ -4,6 +4,7 @@ using DiscordBot.Models.Configuration;
 using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Exceptions;
+using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
 using DSharpPlus.Net;
 using Microsoft.Extensions.DependencyInjection;
@@ -203,6 +204,13 @@ namespace DiscordBot
             var lavalink = discord.UseLavalink();
 
             await discord.ConnectAsync();
+
+            discord.Ready += async (s, e) => {
+
+                await discord.UpdateStatusAsync(new DiscordActivity($"the last {ThisAssembly.Git.Commits} Commits", ActivityType.Watching));
+
+            };
+
             Program.DiscordClientInstance = discord;
             try
             {
