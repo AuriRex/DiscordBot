@@ -2,6 +2,7 @@
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
+using System;
 using System.Threading.Tasks;
 
 namespace DiscordBot.Commands
@@ -12,6 +13,7 @@ namespace DiscordBot.Commands
 
         [Command("stats")]
         [Description("WIP")]
+        [RequireOwner]
         public async Task StatsCommand(CommandContext ctx)
         {
             await ctx.RespondAsync($"{ctx.Member?.DisplayName} -> todo command");
@@ -29,19 +31,23 @@ namespace DiscordBot.Commands
             var guild = ctx.Guild;
             var owner = ctx.Guild.Owner;
 
+            var guildCreationTimeSpan = DateTimeOffset.Now - guild.CreationTimestamp;
+
             var embed = new DiscordEmbedBuilder()
                     .WithColor(DiscordColor.Purple)
-                    .WithAuthor($"{guild.Name} - Guild Information", null, guild.IconUrl)
+                    .WithAuthor($"{guild.Name} - Guild Information", guild.IconUrl, guild.IconUrl)
                     .WithTimestamp(System.DateTimeOffset.Now)
                     .AddField("#Members", guild.MemberCount.ToString(), true)
                     .AddField("Owner", $"{owner.Username}#{owner.Discriminator}{(owner.DisplayName != owner.Username ? $" ({owner.DisplayName})" : string.Empty)}", true)
-                    .AddField("Creation Time", guild.CreationTimestamp.ToString(), true);
+                    .AddField("Creation Time", $"{guild.CreationTimestamp.ToString("F")}\n{guildCreationTimeSpan.ToString($"d' Day{(guildCreationTimeSpan.Days > 1? "s" : string.Empty)} and 'hh':'mm':'ss' ago'")}", true);
 
+            if (!string.IsNullOrEmpty(guild.BannerUrl))
+                embed.WithThumbnail(guild.BannerUrl);
 
-            var msg = await new DiscordMessageBuilder()
-                .AddEmbed(embed.Build())
-                .SendAsync(ctx.Channel);
-            
+            var msg = new DiscordMessageBuilder()
+                .AddEmbed(embed.Build());
+
+            await ctx.Channel.SendMessageAsync(msg);
         }
 
     }
