@@ -28,6 +28,10 @@ using static DiscordBot.Utilities;
     ThisAssembly.Git.Commits + "-" +
     ThisAssembly.Git.Branch + "+" +
     ThisAssembly.Git.Commit)]
+[assembly: AssemblyVersion(
+    ThisAssembly.Git.SemVer.Major + "." +
+    ThisAssembly.Git.SemVer.Minor + "." +
+    ThisAssembly.Git.Commits + ".0")]
 
 namespace DiscordBot
 {
