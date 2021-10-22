@@ -240,20 +240,21 @@ namespace DiscordBot.Managers
 
             var bands = eqSettings.GetBandsAsInts();
 
-            
-            int toRemove = (bands.Max() / 5) * 5;
-            for (int row = 4; row > 0; row--)
+            if(!bands.Any(b => b >= 20))
             {
-                for (int i = 0; i < bands.Length; i++)
+                int toRemove = bands.Max() - (bands.Max() % 5);
+                for (int row = 4; row > 0; row--)
                 {
-                    
-                    var val = Math.Max(bands[i] % 5 - toRemove, 0);
-                    if (val - row >= 0)
-                        builder.Append(EQS_EMBED_UP_UNCOLLAPSED);
-                    else
-                        builder.Append(EQS_EMBED_EMPTY);
+                    for (int i = 0; i < bands.Length; i++)
+                    {
+                        var val = Math.Max((bands[i] - toRemove) % 5, 0);
+                        if (val - row >= 0)
+                            builder.Append(EQS_EMBED_UP_UNCOLLAPSED);
+                        else
+                            builder.Append(EQS_EMBED_EMPTY);
+                    }
+                    builder.Append(EQS_NEWLINE);
                 }
-                builder.Append(EQS_NEWLINE);
             }
 
             var upBuilders = new List<StringBuilder>();
