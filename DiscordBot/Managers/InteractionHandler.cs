@@ -21,7 +21,14 @@ namespace DiscordBot.Managers
 
             if (string.IsNullOrEmpty(customId)) return;
 
-            if(customId.StartsWith("eq_"))
+            DateTimeOffset timestamp = eventArgs.Message.EditedTimestamp ?? eventArgs.Message.CreationTimestamp;
+            if(timestamp.AddMinutes(5) < DateTimeOffset.UtcNow)
+            {
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().WithContent("This interaction has expired!"));
+                return;
+            }
+
+            if (customId.StartsWith("eq_"))
             {
                 await HandleEqualizerSettingsInteractions(client, eventArgs);
                 return;
@@ -73,6 +80,15 @@ namespace DiscordBot.Managers
                 var conn = await LavaLinkCommandsModule.GetGuildConnection(client, member, null, false, member.VoiceState.Channel, null);
 
                 await conn.AdjustEqualizerAsync(eqSettings.GetBands());
+
+                return;
+            }
+
+            if (customId.Equals(CustomComponentIds.EQ_CANCEL))
+            {
+                eqSettings.RestoreFromLastAppliedSettings();
+
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset, EditingState.Canceled).Build()));
 
                 return;
             }
@@ -218,6 +234,7 @@ namespace DiscordBot.Managers
 
             builder.AddComponents(new DiscordComponent[] {
                 new DiscordButtonComponent(ButtonStyle.Success, CustomComponentIds.EQ_APPLY, "Apply", false),
+                new DiscordButtonComponent(ButtonStyle.Danger, CustomComponentIds.EQ_CANCEL, "Cancel", false),
             });
 
             return builder;
@@ -423,12 +440,6 @@ namespace DiscordBot.Managers
             }
         }
 
-        private static string BuildEQSettingsUpwardsLevel()
-        {
-
-            return string.Empty;
-        }
-
         public static class CustomComponentIds
         {
             public const string EQ_DROPDOWN_LOW_FRQZ = "eq_dd_low_frqz";
@@ -438,6 +449,7 @@ namespace DiscordBot.Managers
             public const string EQ_DECREASE_VALUE_PREFIX = "eq_frqz_dn_";
             public const string EQ_DROPDOWN = "eq_dropdown";
             public const string EQ_APPLY = "eq_apply";
+            public const string EQ_CANCEL = "eq_cancel";
         }
     }
 }
