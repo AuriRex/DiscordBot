@@ -18,6 +18,17 @@ using System.Reflection;
 using System.Threading.Tasks;
 using static DiscordBot.Utilities;
 
+[assembly: AssemblyFileVersion(
+    ThisAssembly.Git.SemVer.Major + "." +
+    ThisAssembly.Git.SemVer.Minor + "." +
+    ThisAssembly.Git.Commits + ".0")]
+[assembly: AssemblyInformationalVersion(
+    ThisAssembly.Git.SemVer.Major + "." +
+    ThisAssembly.Git.SemVer.Minor + "." +
+    ThisAssembly.Git.Commits + "-" +
+    ThisAssembly.Git.Branch + "+" +
+    ThisAssembly.Git.Commit)]
+
 namespace DiscordBot
 {
     class Program
