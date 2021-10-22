@@ -23,8 +23,6 @@ namespace DiscordBot.Commands
             //ctx.Channel.GetMessagesBeforeAsync();
         }
 
-        private static DateTime? _buildDate = null;
-
         [Command("bot-version")]
         [Aliases("version")]
         public async Task Version(CommandContext ctx)
@@ -41,15 +39,13 @@ namespace DiscordBot.Commands
             if (!string.IsNullOrEmpty(ThisAssembly.Git.Tag))
                 embed.AddField("Tag", $"{ThisAssembly.Git.Tag}", true);
 
-            embed.AddField("Local Changes", $"{ThisAssembly.Git.IsDirty}", true);
+            embed.AddField("Local Changes", $"{EmbeddedData.IsDirty}", true);
+
+            
 
             // https://stackoverflow.com/questions/1600962/displaying-the-build-date
-            if (!_buildDate.HasValue)
-            {
-                _buildDate = DateTime.Parse(Properties.Resources.BuildDate);
-            }
 
-            var lastCommitMessage = Properties.Resources.LastCommitMessage;
+            var lastCommitMessage = EmbeddedData.LastCommitMessage;
 
             lastCommitMessage = lastCommitMessage.Trim();
 
@@ -62,7 +58,7 @@ namespace DiscordBot.Commands
 
             embed.AddField("Commit Date (UTC)", $"{commitDate.ToString("F")}");
 
-            embed.AddField("Build Date (UTC)", $"{_buildDate.Value.ToString("F")}");
+            embed.AddField("Build Date (UTC)", $"{EmbeddedData.CompileTime.ToString("F")}");
 
             embed.WithFooter("Localized Commit Date");
             embed.WithTimestamp(commitDate);
