@@ -20,8 +20,9 @@ namespace DiscordBot.Models.Configuration
             public ulong JoinCommandReactionId { get; set; }
             public ulong ResumeCommandReactionId { get; set; }
             public ulong PauseCommandReactionId { get; set; }
+            public ulong ShowMeCommandReactionId { get; set; }
 
-            
+
         }
 
         public static DiscordEmoji GetGuildEmojiOrFallback(DiscordClient client, ulong id, string unicodeFallback)
