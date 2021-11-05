@@ -247,6 +247,30 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync($"Switched Queue Mode to `{queue.Mode}`!");
         }
 
+        [Command("clear-queue")]
+        [Aliases("clear")]
+        public async Task ClearQueue(CommandContext ctx)
+        {
+            var conn = GetGuildConnection(ctx.Client, ctx.Member, ctx);
+
+            if(conn == null)
+            {
+                return;
+            }
+
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
+
+            if(queue.IsEmpty)
+            {
+                await ctx.RespondAsync("Nothing in the queue!");
+                return;
+            }
+
+            var numCleared = queue.Clear();
+
+            await ctx.RespondAsync($"The queue has been cleared and {numCleared} songs have been sent to the shadow realm!");
+        }
+
         [Command("queue")]
         [Aliases("q")]
         public async Task Queue(CommandContext ctx)
@@ -312,7 +336,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("force-skip")]
-        [Aliases("fs", "forceskip")]
+        [Aliases("fs", "forceskip", "skip")]
         public async Task ForceSkip(CommandContext ctx)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);

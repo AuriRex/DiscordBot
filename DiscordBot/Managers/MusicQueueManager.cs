@@ -111,6 +111,14 @@ namespace DiscordBot.Managers
                 }
             }
 
+            public bool IsEmpty
+            {
+                get
+                {
+                    return _tracks.Count <= 0;
+                }
+            }
+
             private readonly DiscordGuild _attachedGuild;
             private readonly Queue<LavalinkTrack> _tracks;
 
@@ -264,6 +272,19 @@ namespace DiscordBot.Managers
             public void SaveLastDequeuedSongTime(TimeSpan position)
             {
                 LastDequeuedSongTime = position;
+            }
+
+            /// <summary>
+            /// Clears the queue and returns the number of songs that have been removed.
+            /// </summary>
+            /// <returns></returns>
+            public int Clear()
+            {
+                var songs = _tracks.Count;
+
+                _tracks.Clear();
+
+                return songs;
             }
         }
 
