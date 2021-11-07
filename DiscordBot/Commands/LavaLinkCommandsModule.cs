@@ -28,6 +28,8 @@ namespace DiscordBot.Commands
         [Description("Play a video from YouTube")]
         public async Task Play(CommandContext ctx, [RemainingText] string search)
         {
+            if (string.IsNullOrEmpty(search)) return;
+
             if(search.StartsWith('<') && search.EndsWith('>'))
             {
                 search = search.Substring(1, search.Length - 2);
@@ -122,6 +124,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("play")]
+        [Priority(10)]
         // play with no arguments as alias for resume
         public async Task Play(CommandContext ctx)
         {
