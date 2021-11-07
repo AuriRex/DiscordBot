@@ -34,8 +34,32 @@ namespace DiscordBot
 
             string jsonString = File.ReadAllText(path);
 
-            jsonObject = JsonSerializer.Deserialize<T>(jsonString, options ?? JsonOptions);
+            jsonObject = ParseJSON<T>(jsonString, options ?? JsonOptions);
             return true;
+        }
+
+        /// <summary>
+        /// Parse a string of JSON data into type <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="json"></param>
+        /// <param name="options"></param>
+        /// <returns></returns>
+        public static T ParseJSON<T>(string json, JsonSerializerOptions options = null)
+        {
+            return JsonSerializer.Deserialize<T>(json, options ?? JsonOptions);
+        }
+
+        /// <summary>
+        /// Convert an object of type <typeparamref name="T"/> into JSON representation.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="saveObject"></param>
+        /// <param name="options"></param>
+        /// <returns></returns>
+        public static string SaveJSON<T>(T saveObject, JsonSerializerOptions options = null)
+        {
+            return JsonSerializer.Serialize<T>(saveObject, options ?? JsonOptions);
         }
 
         /// <summary>
@@ -47,7 +71,7 @@ namespace DiscordBot
         /// <param name="options">(Optional) serializer options, a default is used if this is null</param>
         public static void SaveJSON<T>(T jsonObject, string path, JsonSerializerOptions options = null)
         {
-            string jsonString = JsonSerializer.Serialize<T>(jsonObject, options ?? JsonOptions);
+            string jsonString = SaveJSON<T>(jsonObject, options ?? JsonOptions);
 
             File.WriteAllText(path, jsonString);
         }

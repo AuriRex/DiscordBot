@@ -33,6 +33,12 @@ namespace DiscordBot.Managers
                 await HandleEqualizerSettingsInteractions(client, eventArgs);
                 return;
             }
+
+            if(customId.StartsWith("duel_"))
+            {
+                await HandleDuelInteractions(client, eventArgs);
+                return;
+            }
             
 
             await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().WithContent("No more buttons for you >:)"));
@@ -50,6 +56,9 @@ namespace DiscordBot.Managers
             public const string EQ_DROPDOWN = "eq_dropdown";
             public const string EQ_APPLY = "eq_apply";
             public const string EQ_CANCEL = "eq_cancel";
+
+            public const string DUEL_ACCEPT_PREFIX = "duel_accept_";
+            public const string DUEL_DENY_PREFIX = "duel_deny_";
         }
     }
 }
