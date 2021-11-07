@@ -129,7 +129,7 @@ namespace DiscordBot.Commands
         }
 
 
-       [Command("last-song")]
+        [Command("last-song")]
         [Aliases("last")]
         public async Task LastSong(CommandContext ctx)
         {
@@ -167,6 +167,21 @@ namespace DiscordBot.Commands
             }
 
             await ctx.RespondAsync($"Added last played track `{lastTrack?.Title}` to the queue!");
+        }
+
+        [Command("unstuck")]
+        [Aliases("force-leave")]
+        [RequireUserPermissions(Permissions.Administrator)]
+        public async Task Unstuck(CommandContext ctx)
+        {
+            var conn = await GetGuildConnection(ctx, true, false, ctx.Member.VoiceState.Channel, MusicQueueManager);
+
+            if (conn == null) return;
+
+            if(conn.IsConnected)
+            {
+                await conn.DisconnectAsync();
+            }
         }
 
         [Command("shuffle")]
