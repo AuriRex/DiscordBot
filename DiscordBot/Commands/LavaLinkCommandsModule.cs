@@ -78,9 +78,12 @@ namespace DiscordBot.Commands
                 return;
             }
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(ctx.Guild);
+            var queue = musicPlayerData.Queue;
 
             var track = loadResultSearch.Tracks.First();
+
+            musicPlayerData.LastUsedPlayControlChannel = ctx.Channel;
 
             if (loadResultSearch.LoadResultType == LavalinkLoadResultType.PlaylistLoaded)
             {
@@ -136,7 +139,8 @@ namespace DiscordBot.Commands
         [Aliases("last")]
         public async Task LastSong(CommandContext ctx)
         {
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(ctx.Guild);
+            var queue = musicPlayerData.Queue;
 
             var lastTrack = queue.LastDequeuedTrack;
 
@@ -161,6 +165,8 @@ namespace DiscordBot.Commands
                     await ctx.RespondAsync($"Sorry, something went wrong.");
                     return;
                 }
+
+                musicPlayerData.LastUsedPlayControlChannel = ctx.Channel;
 
                 await conn.PlayAsync(nextTrack);
 

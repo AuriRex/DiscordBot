@@ -14,20 +14,26 @@ namespace DiscordBot.Managers
     public class MusicQueueManager
     {
 
-        private Dictionary<DiscordGuild, QueueForGuild> _queueForGuild = new Dictionary<DiscordGuild, QueueForGuild>();
+        private Dictionary<DiscordGuild, MusicPlayerDataForGuild> _musicPlayerDataForGuild = new Dictionary<DiscordGuild, MusicPlayerDataForGuild>();
 
         public QueueForGuild GetOrCreateQueueForGuild(DiscordGuild guild)
         {
+            var musicPlayerData = GetOrCreateMusicPlayerData(guild);
+            return musicPlayerData?.Queue;
+        }
+
+        public MusicPlayerDataForGuild GetOrCreateMusicPlayerData(DiscordGuild guild)
+        {
             if (guild == null) return null;
 
-            if(_queueForGuild.TryGetValue(guild, out QueueForGuild qfg))
+            if (_musicPlayerDataForGuild.TryGetValue(guild, out MusicPlayerDataForGuild mpd))
             {
-                return qfg;
+                return mpd;
             }
 
-            var newQueue = new QueueForGuild(guild);
-            _queueForGuild.Add(guild, newQueue);
-            return newQueue;
+            var newMusicPlayerData = new MusicPlayerDataForGuild(guild);
+            _musicPlayerDataForGuild.Add(guild, newMusicPlayerData);
+            return newMusicPlayerData;
         }
 
         /// <summary>
@@ -40,6 +46,29 @@ namespace DiscordBot.Managers
             conn.PlaybackFinished += OnPlaybackFinished;
             conn.DiscordWebSocketClosed -= OnDiscordWebSocketException;
             conn.DiscordWebSocketClosed += OnDiscordWebSocketException;
+            conn.TrackException -= OnTrackException;
+            conn.TrackException += OnTrackException;
+        }
+
+        private async Task OnTrackException(LavalinkGuildConnection sender, TrackExceptionEventArgs e)
+        {
+            Log.Warning($"{nameof(OnTrackException)} called!: Error:{e.Error}, TrackTitle:{e.Track?.Title}");
+
+            var musicPlayerData = GetOrCreateMusicPlayerData(sender.Guild);
+
+            var channel = musicPlayerData.LastUsedPlayControlChannel;
+
+            if (channel != null)
+            {
+                if(musicPlayerData.LastErrorMessage == null || (musicPlayerData.LastErrorMessage != null && musicPlayerData.LastErrorMessage.Timestamp.AddSeconds(5) < DateTimeOffset.UtcNow))
+                {
+                    musicPlayerData.LastErrorMessage = await channel.SendMessageAsync($"Playing of track '{e?.Track?.Title}' failed, {e.Error} ");
+                }
+                else
+                {
+                    musicPlayerData.LastErrorMessage = await musicPlayerData.LastErrorMessage.ModifyAsync($"{musicPlayerData.LastErrorMessage.Content}+");
+                }
+            }
         }
 
         private async Task OnDiscordWebSocketException(LavalinkGuildConnection sender, WebSocketCloseEventArgs e)
@@ -77,6 +106,31 @@ namespace DiscordBot.Managers
             }
 
             return;
+        }
+
+        public class MusicPlayerDataForGuild
+        {
+            public DiscordGuild Guild { get; private set; }
+            private QueueForGuild _queue;
+            public QueueForGuild Queue
+            {
+                get
+                {
+                    if(_queue == null)
+                    {
+                        _queue = new QueueForGuild(Guild);
+                    }
+                    return _queue;
+                }
+            }
+
+            public DiscordChannel LastUsedPlayControlChannel { get; set; }
+            public DiscordMessage LastErrorMessage { get; internal set; }
+
+            public MusicPlayerDataForGuild(DiscordGuild guild)
+            {
+                Guild = guild;
+            }
         }
 
         public class QueueForGuild
