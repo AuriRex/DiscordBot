@@ -121,7 +121,15 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync($"Now playing `{track.Title}`! 🎵");
         }
 
-        [Command("last-song")]
+        [Command("play")]
+        // play with no arguments as alias for resume
+        public async Task Play(CommandContext ctx)
+        {
+            await Resume(ctx);
+        }
+
+
+       [Command("last-song")]
         [Aliases("last")]
         public async Task LastSong(CommandContext ctx)
         {
@@ -527,7 +535,6 @@ namespace DiscordBot.Commands
 
             if(conn == null)
             {
-                await ctx.RespondAsync("An Error occured!");
                 return;
             }
 
