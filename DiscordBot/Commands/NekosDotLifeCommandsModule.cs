@@ -33,8 +33,6 @@ namespace DiscordBot.Commands
 
         [Command("anime")]
         [Description("Anime image or gif")]
-        //[RequireNsfw]
-        //[Cooldown(6, 30, CooldownBucketType.Global)]
         public async Task NekoCommand(CommandContext ctx, [Description("The endpoint to use")] string endpoint)
         {
             await ctx.TriggerTypingAsync();
@@ -74,7 +72,6 @@ namespace DiscordBot.Commands
         [Command("hentai")]
         [Description("NSFW hentai image or gif")]
         [RequireNsfw]
-        //[Cooldown(6, 30, CooldownBucketType.Global)]
         public async Task LewdNekoCommand(CommandContext ctx, [Description("The NSFW endpoint to use")] string endpoint)
         {
             await ctx.TriggerTypingAsync();

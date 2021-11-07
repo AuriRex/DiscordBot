@@ -25,6 +25,7 @@ namespace DiscordBot.Commands
 
         [Command("bot-version")]
         [Aliases("version")]
+        [Description("Print (Git) information about the bot.")]
         public async Task Version(CommandContext ctx)
         {
             var embed = new DiscordEmbedBuilder()

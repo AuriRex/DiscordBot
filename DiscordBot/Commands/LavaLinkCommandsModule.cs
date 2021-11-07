@@ -25,8 +25,8 @@ namespace DiscordBot.Commands
         public Config BotConfig { private get; set; }
 
         [Command("play")]
-        [Description("Play a video from YouTube")]
-        public async Task Play(CommandContext ctx, [RemainingText] string search)
+        [Description("Play a video from YouTube or from a direct video/audio source URL.")]
+        public async Task Play(CommandContext ctx, [Description("YouTube search or URL")] [RemainingText] string search)
         {
             if (string.IsNullOrEmpty(search)) return;
 
@@ -188,6 +188,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("shuffle")]
+        [Description("Randomizes the order of the songs in the Queue.")]
         public async Task Shuffle(CommandContext ctx)
         {
             var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
@@ -249,6 +250,7 @@ namespace DiscordBot.Commands
 
         [Command("queue-mode")]
         [Aliases("qm", "queuemode")]
+        [Description("Change the way the Queue behaves and in extension the way the next song is chosen.")]
         public async Task QueueMode(CommandContext ctx, string queueModeString)
         {
             var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
@@ -275,6 +277,7 @@ namespace DiscordBot.Commands
 
         [Command("clear-queue")]
         [Aliases("clear")]
+        [Description("Remove all songs from the Queue.")]
         public async Task ClearQueue(CommandContext ctx)
         {
             var conn = GetGuildConnection(ctx.Client, ctx.Member, ctx);
@@ -299,6 +302,7 @@ namespace DiscordBot.Commands
 
         [Command("queue")]
         [Aliases("q")]
+        [Description("Display information about the Queue including the next* few songs.")]
         public async Task Queue(CommandContext ctx)
         {
             var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
@@ -363,6 +367,7 @@ namespace DiscordBot.Commands
 
         [Command("force-skip")]
         [Aliases("fs", "forceskip", "skip")]
+        [Description("Skip to the next song.")]
         public async Task ForceSkip(CommandContext ctx)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
@@ -384,6 +389,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("volume")]
+        [Description("Volume control, 0 equals muted, 100 is default and 1000 being earrape crunchy.")]
         public async Task Volume(CommandContext ctx, [Description("Volume between 0 and 1000")] int volume)
         {
             var conn = await GetGuildConnection(ctx);
@@ -418,6 +424,7 @@ namespace DiscordBot.Commands
 
         [Command("equalizer")]
         [Aliases("eq")]
+        [Description("Change the Equalizer settings.")]
         public async Task Equalizer(CommandContext ctx)
         {
             var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
@@ -428,58 +435,37 @@ namespace DiscordBot.Commands
         }
 
         [Command("equalizer")]
-        public async Task Equalizer(CommandContext ctx, [RemainingText] string text)
+        public async Task Equalizer(CommandContext ctx, [Description("Preset profile name")] [RemainingText] string text)
         {
             // TODO: add presets
             if(text.Equals("reset", StringComparison.OrdinalIgnoreCase))
             {
-                var conn = await GetGuildConnection(ctx);
-
-                if (conn == null) return;
-
-                await conn.ResetEqualizerAsync();
-
-                await ctx.RespondAsync("Equalizer has been reset!");
-
+                await EqualizerReset(ctx);
                 return;
             }
 
             await Equalizer(ctx);
         }
 
-        [Command("eq-test")]
-        [Hidden]
-        public async Task EqTest(CommandContext ctx)
+        [Command("equalizer-reset")]
+        [Aliases("eq-reset")]
+        [Description("Reset the Equalizer back to default.")]
+        public async Task EqualizerReset(CommandContext ctx)
         {
-            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
+            var conn = await GetGuildConnection(ctx);
 
-            var equalizer = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
-
-
-            var tests = new LavalinkBandAdjustment[]
-            {
-                new LavalinkBandAdjustment(0, 1),
-                new LavalinkBandAdjustment(1, 1),
-                new LavalinkBandAdjustment(2, 1),
-            };
-
-            await conn.AdjustEqualizerAsync(tests);
-        }
-
-        [Command("eq-test-reset")]
-        [Hidden]
-        public async Task EqTestReset(CommandContext ctx)
-        {
-            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
-
+            if (conn == null) return;
 
             await conn.ResetEqualizerAsync();
+
+            await ctx.RespondAsync("Equalizer has been reset!");
         }
 
         private static string _streamProgressBar = string.Empty;
 
         [Command("now-playing")]
         [Aliases("np", "nowplaying")]
+        [Description("Show the currently playing song and it's playback position / total length.")]
         public async Task NowPlaying(CommandContext ctx)
         {
             var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
@@ -522,6 +508,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("pause")]
+        [Description("Pause the song.")]
         public async Task Pause(CommandContext ctx)
         {
             var conn = await GetGuildConnection(ctx);
@@ -547,6 +534,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("resume")]
+        [Description("Resume playback.")]
         public async Task Resume(CommandContext ctx)
         {
             var conn = await GetGuildConnection(ctx, true, true, ctx?.Member?.VoiceState?.Channel);
@@ -560,7 +548,7 @@ namespace DiscordBot.Commands
 
             if (conn.CurrentState.CurrentTrack == null)
             {
-                if(queue != null && queue.Count > 0)
+                if(queue != null)
                 {
                     var track = queue.GetLastTrackLimited();
                     if(track != null)
@@ -613,6 +601,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("leave")]
+        [Description("Makes the bot leave the current voice channel")]
         public async Task Leave(CommandContext ctx)
         {
             var conn = await GetGuildConnection(ctx);
