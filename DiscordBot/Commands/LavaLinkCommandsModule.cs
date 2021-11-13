@@ -1,4 +1,5 @@
 ﻿using DiscordBot.Attributes;
+using DiscordBot.Commands.Core;
 using DiscordBot.Managers;
 using DiscordBot.Models.Configuration;
 using DSharpPlus;
@@ -21,6 +22,7 @@ namespace DiscordBot.Commands
     {
         public EqualizerManager EqualizerManager { private get; set; }
         public MusicQueueManager MusicQueueManager { private get; set; }
+        public LavaLinkCommandsCore LavaLinkCommandsCore { private get; set; }
 
         public Config BotConfig { private get; set; }
 
@@ -35,95 +37,9 @@ namespace DiscordBot.Commands
                 search = search.Substring(1, search.Length - 2);
             }
 
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null)
-            {
-                await ctx.RespondAsync("You are not in a voice channel.");
-                return;
-            }
-
-            var lava = ctx.Client.GetLavalink();
-            var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx?.Member?.VoiceState?.Guild);
-
-            if (conn == null)
-            {
-                conn = await ConnectToVoice(ctx, ctx?.Member?.VoiceState?.Channel, false, MusicQueueManager);
-                if (conn == null)
-                {
-                    await ctx.RespondAsync("I'm not connected to a Voice Channel.");
-                    return;
-                }
-            }
-
-            LavalinkLoadResult loadResult = null;
-            if(search.StartsWith("https://") || search.StartsWith("http://"))
-            {
-                //LavalinkSearchType.
-                var uri = new System.Uri(search);
-                loadResult = await node.Rest.GetTracksAsync(uri);
-            }
-            else if (search.Contains("soundcloud"))
-            {
-                search = search.Replace("soundcloud", string.Empty);
-                loadResult = await node.Rest.GetTracksAsync(search, LavalinkSearchType.SoundCloud);
-            }
-
-            var loadResultSearch = (loadResult != null && loadResult.LoadResultType != LavalinkLoadResultType.LoadFailed && loadResult.LoadResultType != LavalinkLoadResultType.NoMatches) ? loadResult : await node.Rest.GetTracksAsync(search);
-
-            if (loadResultSearch.LoadResultType == LavalinkLoadResultType.LoadFailed
-                || loadResultSearch.LoadResultType == LavalinkLoadResultType.NoMatches
-                || loadResultSearch.Tracks.Count() == 0)
-            {
-                await ctx.RespondAsync($"Track search failed for {search}.");
-                return;
-            }
-
-            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(ctx.Guild);
-            var queue = musicPlayerData.Queue;
-
-            var track = loadResultSearch.Tracks.First();
-
-            musicPlayerData.LastUsedPlayControlChannel = ctx.Channel;
-
-            if (loadResultSearch.LoadResultType == LavalinkLoadResultType.PlaylistLoaded)
-            {
-                string playlistName = loadResultSearch.PlaylistInfo.Name;
-                
-                string extra = string.Empty;
-
-                var timeUntil = queue.EnqueueTracks(loadResultSearch.Tracks);
-
-                if (conn.CurrentState.CurrentTrack == null)
-                {
-                    track = queue.DequeueTrack();
-
-                    Log.Information($"Playing '{track.Title}' in '{conn.Guild.Name}' / '{conn.Guild.Id}' from queue.");
-                    await conn.PlayAsync(track);
-                    extra = $"Now playing `{track.Title}`!\n";
-                }
-                else
-                {
-                    timeUntil = timeUntil + conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
-                }
-
-                await ctx.RespondAsync($"{extra}Added **{loadResultSearch.Tracks.Count()-1}** songs from playlist `{playlistName}` to the queue! 🎵");
-                return;
-            }
-            
-
-            if (conn.CurrentState.CurrentTrack != null)
-            {
-                var timeUntil = queue.EnqueueTrack(track) + conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
-
-                await ctx.RespondAsync($"Added `{track.Title}` to the queue! {(!queue.IsRandomMode ? $"Estimated time until playback: {Utilities.SpecialFormatTimeSpan(timeUntil)}" : string.Empty)} 🎵");
-                return;
-            }
-
-            queue.EnqueueTrack(track);
-
-            await conn.PlayAsync(queue.DequeueTrack());
-
-            await ctx.RespondAsync($"Now playing `{track.Title}`! 🎵");
+            await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, search, callback: async (callbackArgs) => {
+                await ctx.RespondAsync(callbackArgs.Embed);
+            });
         }
 
         [Command("play")]

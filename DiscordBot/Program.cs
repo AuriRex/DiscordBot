@@ -1,4 +1,5 @@
 ﻿using DiscordBot.Attributes;
+using DiscordBot.Commands.Application;
 using DiscordBot.Managers;
 using DiscordBot.Models.Configuration;
 using DSharpPlus;
@@ -7,10 +8,12 @@ using DSharpPlus.CommandsNext.Exceptions;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
 using DSharpPlus.Net;
+using DSharpPlus.SlashCommands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -148,7 +151,8 @@ namespace DiscordBot
             var DBM = new DataBaseManager("./data/database.db");
             var authService = new ComAuthService(DBM);
             ComManager = new CommunicationsManager(authService, DBM, discord);
-            
+
+            List<object> toInstall = new List<object>();
 
             foreach(Type t in Assembly.GetExecutingAssembly().GetTypes())
             {
@@ -165,6 +169,11 @@ namespace DiscordBot
                         case AutoDI.Scoped attr:
                             services.AddScoped(t);
                             break;
+                        case AutoDI.SingletonCreateAndInstall attr:
+                            var instance = Activator.CreateInstance(t);
+                            services.AddSingleton(t, instance);
+                            toInstall.Add(instance);
+                            break;
                     }
                 }
             }
@@ -175,6 +184,7 @@ namespace DiscordBot
             services.AddSingleton<ComAuthService>(authService);
             services.AddSingleton<Random>();
 
+            
 
             var cmdConf = new CommandsNextConfiguration();
 
@@ -184,7 +194,30 @@ namespace DiscordBot
             cmdConf.Services = serviceProvider;
 
 
+            foreach(var instance in toInstall)
+            {
+                var type = instance.GetType();
+                var props = type.GetRuntimeProperties().Where(xp => xp.CanWrite && xp.SetMethod != null && !xp.SetMethod.IsStatic && xp.SetMethod.IsPublic);
+                foreach (var prop in props)
+                {
+                    if (prop.GetCustomAttribute<DontInjectAttribute>() != null)
+                        continue;
+
+                    var service = serviceProvider.GetService(prop.PropertyType);
+                    if (service == null)
+                        continue;
+
+                    prop.SetValue(instance, service);
+                }
+            }
+
             var commands = discord.UseCommandsNext(cmdConf);
+
+            var slash = discord.UseSlashCommands(new SlashCommandsConfiguration {
+                Services = serviceProvider
+            });
+
+            slash.RegisterCommands<LavaLinkAppCommandsModule>(871002087692058625);
 
             commands.RegisterCommands(Assembly.GetExecutingAssembly());
 

@@ -191,6 +191,33 @@ namespace DiscordBot
             embed.WithAuthor($"{ctx.User.Username}#{ctx.User.Discriminator}", ctx.User.AvatarUrl, ctx.User.AvatarUrl);
         }
 
+        public static DiscordEmbedBuilder CreateTitleEmbed(string title, DiscordColor color, string url = null)
+        {
+            if(string.IsNullOrWhiteSpace(title))
+            {
+                throw new ArgumentException($"{nameof(title)} must contain something!");
+            }
+
+            var embed = new DiscordEmbedBuilder();
+
+            embed.Title = title;
+            embed.Color = color;
+            if(!string.IsNullOrWhiteSpace(url))
+                embed.Url = url;
+
+            return embed;
+        }
+
+        public static DiscordEmbedBuilder CreateErrorEmbed(string message, string url = null)
+        {
+            return CreateTitleEmbed(message, DiscordColor.Red, url);
+        }
+
+        public static DiscordEmbedBuilder CreateSuccessEmbed(string message, string url = null)
+        {
+            return CreateTitleEmbed(message, DiscordColor.Green, url);
+        }
+
         public static bool QuoteUnitTestsQuote()
         {
             var user1 = new DBDiscordUser()

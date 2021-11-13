@@ -126,6 +126,7 @@ namespace DiscordBot.Managers
 
             public DiscordChannel LastUsedPlayControlChannel { get; set; }
             public DiscordMessage LastErrorMessage { get; internal set; }
+            public bool AllowNonPresentMemberControl { get; set; } = false;
 
             public MusicPlayerDataForGuild(DiscordGuild guild)
             {
