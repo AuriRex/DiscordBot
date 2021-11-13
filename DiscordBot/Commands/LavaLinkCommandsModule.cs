@@ -132,43 +132,7 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync("The Queue has been shuffled! 🎲");
         }
 
-        private static Dictionary<MusicQueueManager.QueueMode, DiscordEmoji> _queueModeReactions = null;
-        public static Dictionary<MusicQueueManager.QueueMode, DiscordEmoji> QueueModeReactions
-        {
-            get
-            {
-                if (_queueModeReactions == null)
-                {
-                    _queueModeReactions = new Dictionary<MusicQueueManager.QueueMode, DiscordEmoji>();
-
-                    Type type = typeof(MusicQueueManager.QueueMode);
-                    foreach (string name in Enum.GetNames(type))
-                    {
-                        if (name != null)
-                        {
-                            FieldInfo field = type.GetField(name);
-                            if (field != null)
-                            {
-                                AttachedStringAttribute attr = Attribute.GetCustomAttribute(field, typeof(AttachedStringAttribute)) as AttachedStringAttribute;
-                                if (attr != null)
-                                {
-                                    var enumValue = Enum.Parse<MusicQueueManager.QueueMode>(name);
-                                    try
-                                    {
-                                        _queueModeReactions.Add(enumValue, DiscordEmoji.FromUnicode(attr.Value));
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Log.Error($"Non valid emoji attached to {type.FullName}.{enumValue}! {ex.Message}");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                return _queueModeReactions;
-            }
-        }
+        
 
         [Command("queue-mode")]
         [Aliases("qm", "queuemode")]
@@ -188,7 +152,7 @@ namespace DiscordBot.Commands
                 return;
             }
 
-            if(QueueModeReactions.TryGetValue(queue.Mode, out DiscordEmoji emoji))
+            if(LavaLinkCommandsCore.QueueModeReactions.TryGetValue(queue.Mode, out DiscordEmoji emoji))
             {
                 await ctx.Message.CreateReactionAsync(emoji);
                 return;
@@ -227,64 +191,11 @@ namespace DiscordBot.Commands
         [Description("Display information about the Queue including the next* few songs.")]
         public async Task Queue(CommandContext ctx)
         {
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
-
-            var nextSongs = queue.GetTopXTracks(10);
-
-            string extra = string.Empty;
-            if(QueueModeReactions.TryGetValue(queue.Mode, out var discordEmoji))
-            {
-                extra = $" {discordEmoji}";
-            }
-
-            var embed = new DiscordEmbedBuilder()
-                .WithTitle($"Queue ({(queue.Count == 0 ? "Empty" : $"{queue.Count} Track{(queue.Count == 1 ? string.Empty : "s")}")}) | {queue.Mode.ToString()} Mode{extra}")
-                .WithTimestamp(DateTime.Now);
-
-
-            var listOfStrings = new List<string>();
-            int totalCharacterCount = 0;
-            
-            var conn = await GetGuildConnectionCheckTrackPlaying(ctx, false);
-
-            TimeSpan currentTimeUntil = new TimeSpan();
-
-            if (conn != null && conn.CurrentState.CurrentTrack != null)
-            {
-                embed.WithAuthor($"Current Song: {conn.CurrentState.CurrentTrack.Title}", conn.CurrentState.CurrentTrack.Uri.ToString());
-                currentTimeUntil = conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
-            }
-
-            if (queue.Count == 0)
-            {
-                embed.WithDescription($"> No tracks {(conn?.CurrentState?.CurrentTrack != null ? "*(except for the currently playing one)* " : string.Empty)}left in the queue!\n> Add some more with the `play` command.");
-
-                var messageEmpty = new DiscordMessageBuilder()
-                    .WithEmbed(embed.Build());
-
-                await ctx.RespondAsync(messageEmpty);
-                return;
-            }
-
-            foreach (LavalinkTrack track in nextSongs)
-            {
-                string newString = $"{track.Title} | {(queue.IsRandomMode ? "??:??" : Utilities.SpecialFormatTimeSpan(currentTimeUntil))}";
-                totalCharacterCount += newString.Length;
-                if (totalCharacterCount > 4000) break;
-                currentTimeUntil += track.Length;
-                listOfStrings.Add(newString);
-            }
-
-            string description = Utilities.GetListAsAlternatingStringWithLinebreaks(listOfStrings, Utilities.EmojiNumbersFromOneToTen);
-
-            embed.WithDescription(description);
-
-            embed.WithFooter($"Queue length: {Utilities.SpecialFormatTimeSpan(queue.GetTotalPlayTime())}");
-
-            var message = new DiscordMessageBuilder()
-                .WithEmbed(embed.Build());
-
-            await ctx.RespondAsync(message);
+            await Task.Run(() => {
+                LavaLinkCommandsCore.QueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, async (callbackArgs) => {
+                    await ctx.RespondAsync(callbackArgs.Embed);
+                });
+            });
         }
 
         [Command("force-skip")]
@@ -552,6 +463,7 @@ namespace DiscordBot.Commands
             await conn.DisconnectAsync();
         }
 
+        [Obsolete]
         private static async Task<LavalinkGuildConnection> ConnectToVoice(DiscordClient client, DiscordMember member, DiscordChannel channel, MusicQueueManager musicQueueManager, CommandContext ctx = null)
         {
             var lava = client.GetLavalink();
@@ -578,11 +490,13 @@ namespace DiscordBot.Commands
             return conn;
         }
 
+        [Obsolete]
         private static async Task<LavalinkGuildConnection> ConnectToVoice(CommandContext ctx, DiscordChannel channel, bool sendErrorMessages, MusicQueueManager musicQueueManager)
         {
             return await ConnectToVoice(ctx.Client, ctx.Member, channel == null ? ctx.Member?.VoiceState?.Channel : channel, musicQueueManager, sendErrorMessages ? ctx : null);
         }
 
+        [Obsolete]
         public static async Task<LavalinkGuildConnection> GetGuildConnection(DiscordClient client, DiscordMember member, CommandContext ctx = null, bool tryToConnect = false, DiscordChannel voiceChannel = null, MusicQueueManager musicQueueManager = null)
         {
             if (member.VoiceState == null || member.VoiceState.Channel == null)
@@ -615,11 +529,13 @@ namespace DiscordBot.Commands
             return conn;
         }
 
+        [Obsolete]
         public static async Task<LavalinkGuildConnection> GetGuildConnection(CommandContext ctx, bool sendErrorMessages = true, bool tryToConnect = false, DiscordChannel voiceChannel = null, MusicQueueManager musicQueueManager = null)
         {
             return await GetGuildConnection(ctx.Client, ctx.Member, sendErrorMessages ? ctx : null, tryToConnect, voiceChannel, musicQueueManager);
         }
 
+        [Obsolete]
         public static async Task<LavalinkGuildConnection> GetGuildConnectionCheckTrackPlaying(CommandContext ctx, bool sendErrorMessages = true, bool tryToConnect = false, DiscordChannel voiceChannel = null, MusicQueueManager musicQueueManager = null)
         {
             var conn = await GetGuildConnection(ctx, sendErrorMessages, tryToConnect, voiceChannel, musicQueueManager);

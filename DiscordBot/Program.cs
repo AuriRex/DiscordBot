@@ -217,7 +217,8 @@ namespace DiscordBot
                 Services = serviceProvider
             });
 
-            slash.RegisterCommands<LavaLinkAppCommandsModule>(871002087692058625);
+            //slash.RegisterCommands<LavaLinkAppCommandsModule>(871002087692058625);
+            slash.RegisterCommands(Assembly.GetExecutingAssembly(), 871002087692058625);
 
             commands.RegisterCommands(Assembly.GetExecutingAssembly());
 

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DiscordBot.Commands.Core;
 using DSharpPlus;
+using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using Serilog;
@@ -17,6 +18,32 @@ namespace DiscordBot.Commands.Application
         public LavaLinkCommandsCore LavaLinkCommandsCore { private get; set; }
 
         static readonly Regex URL_REGEX = new Regex("https?:\\/\\/[a-zA-Z.0-9_\\-\\+\\#\\:\\;\\*\\%\\&\\!\\?\\=\\/]+");
+
+        [SlashCommand("play", "Play a YouTube video or a file in a discord channel!")]
+        public async Task PlayCommand(InteractionContext ctx, [Option("SearchOrURL", "Search term or link to video / file."), RemainingText] string searchOrUrl)
+        {
+            if(string.IsNullOrWhiteSpace(searchOrUrl))
+            {
+                await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder().AddEmbed(Utilities.CreateErrorEmbed("Your search term or URL must not be empty!")));
+                return;
+            }
+
+            await ctx.DeferAsync();
+
+            await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, searchOrUrl, callback: async (callbackArgs) => {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(callbackArgs.Embed.Build()));
+            });
+        }
+
+        [SlashCommand("queue", "Show what's up next!")]
+        public async Task QueueCommand(InteractionContext ctx)
+        {
+            await ctx.DeferAsync();
+
+            LavaLinkCommandsCore.QueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, async (callbackArgs) => {
+                await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(callbackArgs.Embed.Build()));
+            });
+        }
 
         [ContextMenu(ApplicationCommandType.MessageContextMenu, "Play this")]
         public async Task CtxPlayThis(ContextMenuContext ctx) {

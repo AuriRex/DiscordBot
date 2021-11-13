@@ -9,6 +9,7 @@ using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -146,7 +147,106 @@ namespace DiscordBot.Commands.Core
             });
         }
 
+        public void QueueCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, Action<UniversalCommandCallbackArgs> callback = null)
+        {
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+
+            var nextSongs = queue.GetTopXTracks(10);
+
+            string extra = string.Empty;
+            if (QueueModeReactions.TryGetValue(queue.Mode, out var discordEmoji))
+            {
+                extra = $" {discordEmoji}";
+            }
+
+            var embed = new DiscordEmbedBuilder()
+                .WithTitle($"Queue ({(queue.Count == 0 ? "Empty" : $"{queue.Count} Track{(queue.Count == 1 ? string.Empty : "s")}")}) | {queue.Mode.ToString()} Mode{extra}")
+                .WithTimestamp(DateTime.Now);
+
+
+            var listOfStrings = new List<string>();
+            int totalCharacterCount = 0;
+
+            TryGetGuildConnection(client, guild, out var conn);
+
+            TimeSpan currentTimeUntil = new TimeSpan();
+
+            if (conn != null && conn.CurrentState.CurrentTrack != null)
+            {
+                embed.WithAuthor($"Current Song: {conn.CurrentState.CurrentTrack.Title}", conn.CurrentState.CurrentTrack.Uri.ToString());
+                currentTimeUntil = conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
+            }
+
+            if (queue.Count == 0)
+            {
+                embed.WithDescription($"> No tracks {(conn?.CurrentState?.CurrentTrack != null ? "*(except for the currently playing one)* " : string.Empty)}left in the queue!\n> Add some more with the `play` command.");
+
+                callback.SendResponse(() => new UniversalCommandCallbackArgs {
+                    Embed = embed
+                });
+                return;
+            }
+
+            foreach (LavalinkTrack track in nextSongs)
+            {
+                string newString = $"{track.Title} | {(queue.IsRandomMode ? "??:??" : Utilities.SpecialFormatTimeSpan(currentTimeUntil))}";
+                totalCharacterCount += newString.Length;
+                if (totalCharacterCount > 4000) break;
+                currentTimeUntil += track.Length;
+                listOfStrings.Add(newString);
+            }
+
+            string description = Utilities.GetListAsAlternatingStringWithLinebreaks(listOfStrings, Utilities.EmojiNumbersFromOneToTen);
+
+            embed.WithDescription(description);
+
+            embed.WithFooter($"Queue length: {Utilities.SpecialFormatTimeSpan(queue.GetTotalPlayTime())}");
+
+            callback.SendResponse(() => new UniversalCommandCallbackArgs
+            {
+                Embed = embed
+            });
+        }
+
         #region util
+        private static Dictionary<MusicQueueManager.QueueMode, DiscordEmoji> _queueModeReactions = null;
+        public static Dictionary<MusicQueueManager.QueueMode, DiscordEmoji> QueueModeReactions
+        {
+            get
+            {
+                if (_queueModeReactions == null)
+                {
+                    _queueModeReactions = new Dictionary<MusicQueueManager.QueueMode, DiscordEmoji>();
+
+                    Type type = typeof(MusicQueueManager.QueueMode);
+                    foreach (string name in Enum.GetNames(type))
+                    {
+                        if (name != null)
+                        {
+                            FieldInfo field = type.GetField(name);
+                            if (field != null)
+                            {
+                                AttachedStringAttribute attr = Attribute.GetCustomAttribute(field, typeof(AttachedStringAttribute)) as AttachedStringAttribute;
+                                if (attr != null)
+                                {
+                                    var enumValue = Enum.Parse<MusicQueueManager.QueueMode>(name);
+                                    try
+                                    {
+                                        _queueModeReactions.Add(enumValue, DiscordEmoji.FromUnicode(attr.Value));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Log.Error($"Non valid emoji attached to {type.FullName}.{enumValue}! {ex.Message}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return _queueModeReactions;
+            }
+        }
+
         public async Task<LavalinkGuildConnection> ConnectToVoice(DiscordClient client, DiscordChannel channelToJoin, Action<UniversalCommandCallbackArgs> callback = null)
         {
             if(channelToJoin == null)
@@ -221,6 +321,11 @@ namespace DiscordBot.Commands.Core
             connection = node.GetGuildConnection(guild);
 
             return connection != null;
+        }
+
+        public static bool TryGetGuildConnection(DiscordClient client, DiscordGuild guild, out LavalinkGuildConnection connection)
+        {
+            return TryGetGuildConnection(client, guild, out connection, out var _);
         }
 
         public static bool IsTrackLoaded(LavalinkGuildConnection conn)
