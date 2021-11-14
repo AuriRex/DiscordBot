@@ -345,13 +345,13 @@ namespace DiscordBot.Managers
 
         public enum QueueMode
         {
-            [AttachedStringAttribute("▶️")]
+            [AttachedString("▶️")]
             Default,
-            [AttachedStringAttribute("🔁")]
+            [AttachedString("🔁")]
             Looping,
-            [AttachedStringAttribute("🎲")]
+            [AttachedString("🎲")]
             Random,
-            [AttachedStringAttribute("🔀")]
+            [AttachedString("🔀")]
             RandomLooping
         }
     }

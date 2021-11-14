@@ -37,9 +37,11 @@ namespace DiscordBot.Commands
                 search = search.Substring(1, search.Length - 2);
             }
 
-            await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, search, callback: async (callbackArgs) => {
-                await ctx.RespondAsync(callbackArgs.Embed);
-            });
+            var response = await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, search);
+
+            if (response.IsEmptyResponse) return;
+
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("play")]
@@ -55,43 +57,11 @@ namespace DiscordBot.Commands
         [Aliases("last")]
         public async Task LastSong(CommandContext ctx)
         {
-            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(ctx.Guild);
-            var queue = musicPlayerData.Queue;
+            var response = await LavaLinkCommandsCore.PlayLastTrackCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            var lastTrack = queue.LastDequeuedTrack;
+            if (response.IsEmptyResponse) return;
 
-            if(lastTrack == null)
-            {
-                await ctx.RespondAsync($"There is no last track to re-play.");
-                return;
-            }
-
-            queue.EnqueueTrack(lastTrack);
-
-            var conn = await GetGuildConnection(ctx, true, true, ctx.Member.VoiceState.Channel, MusicQueueManager);
-
-            if (conn == null) return;
-
-            if(conn.CurrentState.CurrentTrack == null)
-            {
-                var nextTrack = queue.DequeueTrack();
-
-                if(nextTrack == null)
-                {
-                    await ctx.RespondAsync($"Sorry, something went wrong.");
-                    return;
-                }
-
-                musicPlayerData.LastUsedPlayControlChannel = ctx.Channel;
-
-                await conn.PlayAsync(nextTrack);
-
-                await ctx.RespondAsync($"Replaying last song: `{nextTrack.Title}`");
-
-                return;
-            }
-
-            await ctx.RespondAsync($"Added last played track `{lastTrack?.Title}` to the queue!");
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("unstuck")]
@@ -99,9 +69,10 @@ namespace DiscordBot.Commands
         [RequireUserPermissions(Permissions.Administrator)]
         public async Task Unstuck(CommandContext ctx)
         {
-            var conn = await GetGuildConnection(ctx, true, false, ctx.Member.VoiceState.Channel, MusicQueueManager);
-
-            if (conn == null) return;
+            if(!Core.LavaLinkCommandsCore.TryGetGuildConnection(ctx.Client, ctx.Guild, out var conn))
+            {
+                return;
+            }
 
             if(conn.IsConnected)
             {
@@ -113,52 +84,33 @@ namespace DiscordBot.Commands
         [Description("Randomizes the order of the songs in the Queue.")]
         public async Task Shuffle(CommandContext ctx)
         {
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
+            await Task.Run(async () => {
+                var response = LavaLinkCommandsCore.ShuffleQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            if(queue.Count <= 1)
-            {
-                await ctx.RespondAsync("There is nothing to shuffle!");
-                return;
-            }
+                if (response.IsEmptyResponse) return;
 
-            if(queue.IsRandomMode)
-            {
-                await ctx.RespondAsync($"No need to shuffle the Queue as it is in {queue.Mode} Mode already!");
-                return;
-            }
-
-            queue.Shuffle();
-
-            await ctx.RespondAsync("The Queue has been shuffled! 🎲");
+                await ctx.RespondAsync(response.GetMessageBuilder());
+            });
         }
-
-        
 
         [Command("queue-mode")]
         [Aliases("qm", "queuemode")]
         [Description("Change the way the Queue behaves and in extension the way the next song is chosen.")]
         public async Task QueueMode(CommandContext ctx, string queueModeString)
         {
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
+            await Task.Run(async () => {
+                var response = LavaLinkCommandsCore.QueueModeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, queueModeString);
 
-            if (queue == null) return;
-            try
-            {
-                queue.Mode = Enum.Parse<MusicQueueManager.QueueMode>(queueModeString);
-            }
-            catch(Exception)
-            {
-                await ctx.RespondAsync($"Provided Mode doesn't exist! Available Modes are: [{string.Join(", ", Enum.GetNames(typeof(MusicQueueManager.QueueMode)))}]");
-                return;
-            }
+                if (response.Reaction != null)
+                {
+                    await ctx.Message.CreateReactionAsync(response.Reaction);
+                    return;
+                }
 
-            if(LavaLinkCommandsCore.QueueModeReactions.TryGetValue(queue.Mode, out DiscordEmoji emoji))
-            {
-                await ctx.Message.CreateReactionAsync(emoji);
-                return;
-            }
+                if (response.IsEmptyResponse) return;
 
-            await ctx.RespondAsync($"Switched Queue Mode to `{queue.Mode}`!");
+                await ctx.RespondAsync(response.GetMessageBuilder());
+            });
         }
 
         [Command("clear-queue")]
@@ -166,24 +118,13 @@ namespace DiscordBot.Commands
         [Description("Remove all songs from the Queue.")]
         public async Task ClearQueue(CommandContext ctx)
         {
-            var conn = GetGuildConnection(ctx.Client, ctx.Member, ctx);
+            await Task.Run(async () => {
+                var response = LavaLinkCommandsCore.ClearQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            if(conn == null)
-            {
-                return;
-            }
+                if (response.IsEmptyResponse) return;
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx.Guild);
-
-            if(queue.IsEmpty)
-            {
-                await ctx.RespondAsync("Nothing in the queue!");
-                return;
-            }
-
-            var numCleared = queue.Clear();
-
-            await ctx.RespondAsync($"The queue has been cleared and {numCleared} songs have been sent to the shadow realm!");
+                await ctx.RespondAsync(response.GetMessageBuilder());
+            });
         }
 
         [Command("queue")]
@@ -191,10 +132,12 @@ namespace DiscordBot.Commands
         [Description("Display information about the Queue including the next* few songs.")]
         public async Task Queue(CommandContext ctx)
         {
-            await Task.Run(() => {
-                LavaLinkCommandsCore.QueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, async (callbackArgs) => {
-                    await ctx.RespondAsync(callbackArgs.Embed);
-                });
+            await Task.Run(async () => {
+                var response = LavaLinkCommandsCore.QueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
+
+                if (response.IsEmptyResponse) return;
+
+                await ctx.RespondAsync(response.GetMessageBuilder());
             });
         }
 
@@ -203,56 +146,32 @@ namespace DiscordBot.Commands
         [Description("Skip to the next song.")]
         public async Task ForceSkip(CommandContext ctx)
         {
-            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
+            var response = await LavaLinkCommandsCore.ForceSkipCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            var title = conn.CurrentState.CurrentTrack.Title;
+            if (response.IsEmptyResponse) return;
 
-            var embed = new DiscordEmbedBuilder()
-                .WithTitle($"⏩ Skipped: `{title}`")
-                .WithUrl(conn.CurrentState.CurrentTrack.Uri)
-                .WithColor(DiscordColor.IndianRed);
-
-            //Utilities.EmbedWithUserAuthor(embed, ctx);
-
-            var message = new DiscordMessageBuilder()
-                .WithEmbed(embed.Build());
-
-            await conn.SeekAsync(conn.CurrentState.CurrentTrack.Length);
-            await ctx.RespondAsync(message);
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("volume")]
         [Description("Volume control, 0 equals muted, 100 is default and 1000 being earrape crunchy.")]
         public async Task Volume(CommandContext ctx, [Description("Volume between 0 and 1000")] int volume)
         {
-            var conn = await GetGuildConnection(ctx);
+            var response = await LavaLinkCommandsCore.VolumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, volume);
 
-            if (conn == null) return;
+            if (response.IsEmptyResponse) return;
 
-            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
-
-            if(volume < 0 || volume > 1000)
-            {
-                await ctx.RespondAsync("Volume provided is out of range! (0 - 1000) 🔇");
-                return;
-            }
-
-            eqsettings.Volume = volume;
-
-            await conn.SetVolumeAsync(volume);
-            await ctx.RespondAsync($"Volume set to **{volume}**! 🔊");
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("volume")]
         public async Task Volume(CommandContext ctx)
         {
-            var conn = await GetGuildConnection(ctx);
+            var response = await LavaLinkCommandsCore.VolumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, null);
 
-            if (conn == null) return;
+            if (response.IsEmptyResponse) return;
 
-            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
-
-            await ctx.RespondAsync($"Current Volume is at **{eqsettings.Volume}**! 🔊");
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("equalizer")]
@@ -260,11 +179,11 @@ namespace DiscordBot.Commands
         [Description("Change the Equalizer settings.")]
         public async Task Equalizer(CommandContext ctx)
         {
-            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(ctx.Guild);
-            
-            var builder = InteractionHandler.BuildEQSettingsMessageWithComponents(eqsettings, EQOffset.Lows, InteractionHandler.EditingState.Saved);
+            var response = LavaLinkCommandsCore.EqualizerCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            await ctx.RespondAsync(builder);
+            if (response.IsEmptyResponse) return;
+
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("equalizer")]

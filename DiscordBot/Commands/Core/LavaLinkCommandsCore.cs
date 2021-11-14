@@ -12,6 +12,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using static DiscordBot.Events.CommandResponse;
 
 namespace DiscordBot.Commands.Core
 {
@@ -19,30 +20,17 @@ namespace DiscordBot.Commands.Core
     public class LavaLinkCommandsCore
     {
         public MusicQueueManager MusicQueueManager { private get; set; }
+        public EqualizerManager EqualizerManager { private get; set; }
 
-        public async Task PlayCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, string searchOrUrl, bool autoConnect = true, Action<UniversalCommandCallbackArgs> callback = null)
+        public async Task<CommandResponse> PlayCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, string searchOrUrl, bool autoConnect = true)
         {
-            if (string.IsNullOrWhiteSpace(searchOrUrl)) return;
+            if (string.IsNullOrWhiteSpace(searchOrUrl)) return CommandResponse.Empty;
 
             if (!TryGetGuildConnection(client, guild, out var conn, out var node))
             {
-                if(!autoConnect)
-                {
-                    callback.SendResponse(() => new UniversalCommandCallbackArgs
-                    {
-                        Embed = Utilities.CreateErrorEmbed("I am not connected to a voice channel.")
-                    });
-                    return;
-                }
-
-                var channel = invoker.VoiceState?.Channel;
-
-                conn = await ConnectToVoice(client, channel, callback);
-
-                if(conn == null)
-                {
-                    return;
-                }
+                var wrapper = new CommandResponseWrapper();
+                conn = await ConnectToMemberVoice(client, invoker, autoConnect, wrapper);
+                if (conn == null) return wrapper.ResponseOrEmpty;
             }
 
             var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
@@ -51,11 +39,10 @@ namespace DiscordBot.Commands.Core
             {
                 if(!IsMemberInMusicChannel(client, guild, invoker))
                 {
-                    callback.SendResponse(() => new UniversalCommandCallbackArgs
+                    return new CommandResponse
                     {
                         Embed = Utilities.CreateErrorEmbed("You have to be in the voice channel to control the bot.")
-                    });
-                    return;
+                    };
                 }
             }
 
@@ -86,10 +73,10 @@ namespace DiscordBot.Commands.Core
                 || finalLoadResult.LoadResultType == LavalinkLoadResultType.NoMatches
                 || finalLoadResult.Tracks.Count() == 0)
             {
-                callback.SendResponse(() => new UniversalCommandCallbackArgs {
+                return new CommandResponse
+                {
                     Embed = Utilities.CreateErrorEmbed($"Track search failed for {searchOrUrl}. ({finalLoadResult.Exception.Message})")
-                });
-                return;
+                };
             }
 
             var queue = musicPlayerData.Queue;
@@ -119,10 +106,11 @@ namespace DiscordBot.Commands.Core
                 }
 
                 Log.Information($"Queuing playlist '{playlistName}' ({finalLoadResult.Tracks.Count()} Tracks) in '{conn.Guild.Name}' / '{conn.Guild.Id}'.");
-                callback.SendResponse(() => new UniversalCommandCallbackArgs {
+
+                return new CommandResponse
+                {
                     Embed = Utilities.CreateSuccessEmbed($"{extra}Added **{finalLoadResult.Tracks.Count() - 1}** songs from playlist `{playlistName}` to the queue! 🎵", searchOrUrl)
-                });
-                return;
+                };
             }
 
 
@@ -130,24 +118,233 @@ namespace DiscordBot.Commands.Core
             {
                 var timeUntil = queue.EnqueueTrack(track) + conn.CurrentState.CurrentTrack.Length - conn.CurrentState.PlaybackPosition;
 
-                callback.SendResponse(() => new UniversalCommandCallbackArgs
+                return new CommandResponse
                 {
                     Embed = Utilities.CreateSuccessEmbed($"Added `{track.Title}` to the queue! {(!queue.IsRandomMode ? $"Estimated time until playback: {Utilities.SpecialFormatTimeSpan(timeUntil)}" : string.Empty)} 🎵", track.Uri.ToString())
-                });
-                return;
+                };
             }
 
             queue.EnqueueTrack(track);
 
             await conn.PlayAsync(queue.DequeueTrack());
 
-            callback.SendResponse(() => new UniversalCommandCallbackArgs
+            return new CommandResponse
             {
                 Embed = Utilities.CreateSuccessEmbed($"Now playing `{track.Title}`! 🎵", track.Uri.ToString())
-            });
+            };
         }
 
-        public void QueueCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, Action<UniversalCommandCallbackArgs> callback = null)
+        public async Task<CommandResponse> PlayLastTrackCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+            var queue = musicPlayerData.Queue;
+
+            var lastTrack = queue.LastDequeuedTrack;
+
+            if (lastTrack == null)
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed($"There is no last track to re-play.")
+                };
+            }
+
+            queue.EnqueueTrack(lastTrack);
+
+            if (!TryGetGuildConnection(client, guild, out var conn))
+            {
+                var wrapper = new CommandResponseWrapper();
+                conn = await ConnectToMemberVoice(client, invoker, true, wrapper);
+                if (conn == null) return wrapper.ResponseOrEmpty;
+            }
+
+
+            if (conn.CurrentState.CurrentTrack == null)
+            {
+                var nextTrack = queue.DequeueTrack();
+
+                if (nextTrack == null)
+                {
+                    return new CommandResponse
+                    {
+                        Embed = Utilities.CreateErrorEmbed($"Sorry, something went wrong.")
+                    };
+                }
+
+                musicPlayerData.LastUsedPlayControlChannel = invokerMessageChannel;
+
+                await conn.PlayAsync(nextTrack);
+
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed($"Replaying last song: `{nextTrack.Title}`.")
+                };
+            }
+
+            return new CommandResponse
+            {
+                Embed = Utilities.CreateInfoEmbed($"Added last played track `{lastTrack?.Title}` to the queue.")
+            };
+        }
+
+        public async Task<CommandResponse> ForceSkipCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            TryGetGuildConnection(client, guild, out var conn);
+
+            if (!IsTrackLoaded(conn))
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed($"There is nothing to skip.")
+                };
+            }
+
+            var title = conn.CurrentState.CurrentTrack.Title;
+
+            await conn.SeekAsync(conn.CurrentState.CurrentTrack.Length);
+
+            return new CommandResponse
+            {
+                Embed = Utilities.CreateTitleEmbed($"⏩ Skipped: `{title}`", DiscordColor.IndianRed, conn.CurrentState.CurrentTrack.Uri.ToString())
+            };
+        }
+
+        public async Task<CommandResponse> VolumeCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, int? volume)
+        {
+            TryGetGuildConnection(client, guild, out var conn);
+
+            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(guild);
+
+            if(!volume.HasValue || conn == null)
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed($"Current Volume is at **{eqsettings.Volume}**! 🔊")
+                };
+            }
+
+            if (volume < 0 || volume > 1000)
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateErrorEmbed("Volume provided is out of range! (0 - 1000) 🔇")
+                };
+            }
+
+            eqsettings.Volume = volume.Value;
+
+            await conn.SetVolumeAsync(volume.Value);
+
+            return new CommandResponse
+            {
+                Embed = Utilities.CreateSuccessEmbed($"Volume set to **{volume}**! 🔊")
+            };
+        }
+
+        public CommandResponse EqualizerCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(guild);
+
+            var eqOffset = EQOffset.Lows;
+
+            return new CommandResponse {
+                Embed = InteractionHandler.CreateEQSettingsEmbed(eqsettings, eqOffset, InteractionHandler.EditingState.Saved),
+                Components = InteractionHandler.CreateEQSettingsComponents(eqsettings, eqOffset)
+            };
+        }
+
+        public CommandResponse ShuffleQueueCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+
+            if (queue.Count <= 1)
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed("There is nothing to shuffle!")
+                };
+            }
+
+            queue.Shuffle();
+
+            var embed = Utilities.CreateSuccessEmbed("The Queue has been shuffled! 🎲");
+
+            if (queue.IsRandomMode)
+            {
+                embed.Footer.Text = $"The Queue is in {queue.Mode}, there's no need to shuffle.";
+            }
+
+            return new CommandResponse
+            {
+                Embed = embed
+            };
+        }
+
+        public CommandResponse QueueModeCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, string queueModeString)
+        {
+            MusicQueueManager.QueueMode queueMode = MusicQueueManager.QueueMode.Default;
+
+            try
+            {
+                queueMode = Enum.Parse<MusicQueueManager.QueueMode>(queueModeString);
+            }
+            catch (Exception)
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateErrorEmbed($"Provided Mode doesn't exist! Available Modes are: [{string.Join(", ", Enum.GetNames(typeof(MusicQueueManager.QueueMode)))}]")
+                };
+            }
+
+            return QueueModeCommand(client, guild, invokerMessageChannel, invoker, queueMode);
+        }
+
+        public CommandResponse QueueModeCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, MusicQueueManager.QueueMode queueMode)
+        {
+
+            MusicQueueManager.GetOrCreateQueueForGuild(guild).Mode = queueMode;
+
+            if (QueueModeReactions.TryGetValue(queueMode, out DiscordEmoji emoji))
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed($"Switched Queue Mode to `{queueMode}`! {emoji}"),
+                    Reaction = emoji
+                };
+            }
+
+            return new CommandResponse
+            {
+                Embed = Utilities.CreateInfoEmbed($"Switched Queue Mode to `{queueMode}`!")
+            };
+        }
+
+        public CommandResponse ClearQueueCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            if (!TryGetGuildConnection(client, guild, out var conn))
+            {
+                return CommandResponse.Empty;
+            }
+
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+
+            if (queue.IsEmpty)
+            {
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed("Nothing in the queue!")
+                };
+            }
+
+            var numCleared = queue.Clear();
+
+            return new CommandResponse
+            {
+                Embed = Utilities.CreateSuccessEmbed($"The queue has been cleared and {numCleared} songs have been sent to the shadow realm!")
+            };
+        }
+
+        public CommandResponse QueueCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
         {
             var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
 
@@ -181,10 +378,10 @@ namespace DiscordBot.Commands.Core
             {
                 embed.WithDescription($"> No tracks {(conn?.CurrentState?.CurrentTrack != null ? "*(except for the currently playing one)* " : string.Empty)}left in the queue!\n> Add some more with the `play` command.");
 
-                callback.SendResponse(() => new UniversalCommandCallbackArgs {
+                return new CommandResponse
+                {
                     Embed = embed
-                });
-                return;
+                };
             }
 
             foreach (LavalinkTrack track in nextSongs)
@@ -202,10 +399,10 @@ namespace DiscordBot.Commands.Core
 
             embed.WithFooter($"Queue length: {Utilities.SpecialFormatTimeSpan(queue.GetTotalPlayTime())}");
 
-            callback.SendResponse(() => new UniversalCommandCallbackArgs
+            return new CommandResponse
             {
                 Embed = embed
-            });
+            };
         }
 
         #region util
@@ -247,11 +444,29 @@ namespace DiscordBot.Commands.Core
             }
         }
 
-        public async Task<LavalinkGuildConnection> ConnectToVoice(DiscordClient client, DiscordChannel channelToJoin, Action<UniversalCommandCallbackArgs> callback = null)
+        public async Task<LavalinkGuildConnection> ConnectToMemberVoice(DiscordClient client, DiscordMember invoker, bool autoConnect, CommandResponseWrapper responseWrapper = null)
+        {
+            if (!autoConnect)
+            {
+                responseWrapper.SetResponse(new CommandResponse
+                {
+                    Embed = Utilities.CreateErrorEmbed("I am not connected to a voice channel.")
+                });
+                return null;
+            }
+
+            var channel = invoker.VoiceState?.Channel;
+
+            if (channel == null) return null;
+
+            return await ConnectToVoice(client, channel, responseWrapper);
+        }
+
+        public async Task<LavalinkGuildConnection> ConnectToVoice(DiscordClient client, DiscordChannel channelToJoin, CommandResponseWrapper responseWrapper = null)
         {
             if(channelToJoin == null)
             {
-                callback.SendResponse(() => new UniversalCommandCallbackArgs
+                responseWrapper.SetResponse(new CommandResponse
                 {
                     Embed = Utilities.CreateErrorEmbed($"Unable to join your voice channel.")
                 });
@@ -260,7 +475,7 @@ namespace DiscordBot.Commands.Core
 
             if (!TryGetNode(client, out var node))
             {
-                callback.SendResponse(() => new UniversalCommandCallbackArgs
+                responseWrapper.SetResponse(new CommandResponse
                 {
                     Embed = Utilities.CreateErrorEmbed("The Lavalink connection is not established.")
                 });
@@ -269,7 +484,7 @@ namespace DiscordBot.Commands.Core
 
             if (channelToJoin?.Type != ChannelType.Voice)
             {
-                callback.SendResponse(() => new UniversalCommandCallbackArgs
+                responseWrapper.SetResponse(new CommandResponse
                 {
                     Embed = Utilities.CreateErrorEmbed($"\"{channelToJoin?.Name}\" is not a valid voice channel.")
                 });
@@ -283,20 +498,20 @@ namespace DiscordBot.Commands.Core
             return conn;
         }
 
-        public async Task<LavalinkGuildConnection> JoinMemberVoice(DiscordClient client, DiscordMember member, bool memberIsInvoker = false, Action<UniversalCommandCallbackArgs> callback = null)
+        public async Task<LavalinkGuildConnection> JoinMemberVoice(DiscordClient client, DiscordMember member, bool memberIsInvoker = false, CommandResponseWrapper responseWrapper = null)
         {
             var channelToJoin = member?.VoiceState?.Channel;
 
             if(channelToJoin == null)
             {
-                callback.SendResponse(() => new UniversalCommandCallbackArgs
+                responseWrapper.SetResponse(new CommandResponse
                 {
                     Embed = Utilities.CreateErrorEmbed(memberIsInvoker ? $"You don't seem to be in a voice channel." : $"{member.Username} doesn't seem to be in a voice channel.")
                 });
                 return null;
             }
 
-            return await ConnectToVoice(client, channelToJoin, callback);
+            return await ConnectToVoice(client, channelToJoin, responseWrapper);
         }
 
         public static bool TryGetNode(DiscordClient client, out LavalinkNodeConnection node)

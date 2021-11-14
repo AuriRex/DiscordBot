@@ -218,6 +218,11 @@ namespace DiscordBot
             return CreateTitleEmbed(message, DiscordColor.Green, url);
         }
 
+        public static DiscordEmbedBuilder CreateInfoEmbed(string message, string url = null)
+        {
+            return CreateTitleEmbed(message, DiscordColor.Aquamarine, url);
+        }
+
         public static bool QuoteUnitTestsQuote()
         {
             var user1 = new DBDiscordUser()
