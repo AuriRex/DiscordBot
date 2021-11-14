@@ -24,7 +24,7 @@ namespace DiscordBot
         /// <param name="jsonObject">The generated object</param>
         /// <returns><paramref name="true"/> if a read is successful, <paramref name="false"/> if a new object is created</returns>
         /// <param name="options">(Optional) serializer options, a default is used if this is null</param>
-        public static bool TryLoadJSON<T>(string path, out T jsonObject, JsonSerializerOptions options = null) where T : new()
+        public static bool TryLoadJSONFromFile<T>(string path, out T jsonObject, JsonSerializerOptions options = null) where T : new()
         {
             if (!File.Exists(path))
             {
@@ -45,7 +45,7 @@ namespace DiscordBot
         /// <param name="jsonObject">The instance of the object to serialize</param>
         /// <param name="path">The file path to save to</param>
         /// <param name="options">(Optional) serializer options, a default is used if this is null</param>
-        public static void SaveJSON<T>(T jsonObject, string path, JsonSerializerOptions options = null)
+        public static void SaveJSONToFile<T>(T jsonObject, string path, JsonSerializerOptions options = null)
         {
             string jsonString = JsonSerializer.Serialize<T>(jsonObject, options ?? JsonOptions);
 

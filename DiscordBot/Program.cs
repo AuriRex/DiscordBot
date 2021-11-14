@@ -79,7 +79,7 @@ namespace DiscordBot
                 Log.Logger.Information("Disconnecting from discord ...");
                 DiscordClientInstance?.DisconnectAsync();
                 Log.Logger.Information($"Saving Config ... [{Path.GetFullPath(ConfigLocation)}]");
-                SaveJSON(ConfigInstance, ConfigLocation);
+                SaveJSONToFile(ConfigInstance, ConfigLocation);
 #if DEBUG
                 Task.Delay(1000).Wait();
 #endif
@@ -87,21 +87,16 @@ namespace DiscordBot
                 process.Kill();
             };
 
-            if (!Utilities.QuoteUnitTestsQuote())
-            {
-                Log.Logger.Fatal("Tests returned false!");
-            }
-
             AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => { applicationExitAction?.Invoke(sender, eventArgs); };
             process.Exited += (sender, eventArgs) => { applicationExitAction?.Invoke(sender, eventArgs); };
             Console.CancelKeyPress += (sender, eventArgs) => { applicationExitAction?.Invoke(sender, eventArgs); };
 
             Log.Logger.Information($"Loading Config ... [{Path.GetFullPath(ConfigLocation)}]");
             Config cfg;
-            if (!TryLoadJSON(ConfigLocation, out cfg))
+            if (!TryLoadJSONFromFile(ConfigLocation, out cfg))
             {
                 Log.Logger.Information("Config doesn't exist, saving default config values ...");
-                SaveJSON(cfg, ConfigLocation);
+                SaveJSONToFile(cfg, ConfigLocation);
             }
             ConfigInstance = cfg;
         }
@@ -128,8 +123,8 @@ namespace DiscordBot
 
             var lavalinkEndpoint = new ConnectionEndpoint
             {
-                Hostname = "LavaLink", // From your server configuration.
-                Port = 2333 // From your server configuration
+                Hostname = ConfigInstance.LavaLink.Hostname, // From your server configuration.
+                Port = ConfigInstance.LavaLink.Port // From your server configuration
             };
 
             var lavalinkAuth = Environment.GetEnvironmentVariable("lavalink_auth");
@@ -184,17 +179,9 @@ namespace DiscordBot
             services.AddSingleton<ComAuthService>(authService);
             services.AddSingleton<Random>();
 
-            
-
-            var cmdConf = new CommandsNextConfiguration();
-
-            if (ConfigInstance.UseTextPrefix)
-                cmdConf.StringPrefixes = ConfigInstance.Prefixes;
             var serviceProvider = services.BuildServiceProvider();
-            cmdConf.Services = serviceProvider;
 
-
-            foreach(var instance in toInstall)
+            foreach (var instance in toInstall)
             {
                 var type = instance.GetType();
                 var props = type.GetRuntimeProperties().Where(xp => xp.CanWrite && xp.SetMethod != null && !xp.SetMethod.IsStatic && xp.SetMethod.IsPublic);
@@ -211,16 +198,18 @@ namespace DiscordBot
                 }
             }
 
-            var commands = discord.UseCommandsNext(cmdConf);
+            var commands = discord.UseCommandsNext(new CommandsNextConfiguration {
+                StringPrefixes = ConfigInstance.UseTextPrefix ? ConfigInstance.Prefixes : null,
+                Services = serviceProvider
+            });
 
             var slash = discord.UseSlashCommands(new SlashCommandsConfiguration {
                 Services = serviceProvider
             });
 
-            //slash.RegisterCommands<LavaLinkAppCommandsModule>(871002087692058625);
-            slash.RegisterCommands(Assembly.GetExecutingAssembly(), 871002087692058625);
-
             commands.RegisterCommands(Assembly.GetExecutingAssembly());
+
+            slash.RegisterCommands(Assembly.GetExecutingAssembly(), 871002087692058625);
 
             commands.CommandExecuted += (sender, e) => {
                 string where = e.Context.Channel.IsPrivate ? $"DM Channel with id:'{e.Context.Channel?.Id}'" : $"'{e.Context.Guild?.Name}'-'{e.Context.Channel?.Name}' Ids: '{e.Context.Guild?.Id}'-'{e.Context.Channel?.Id}'";
@@ -241,12 +230,12 @@ namespace DiscordBot
                 return Task.CompletedTask;
             };
 
+            ComManager.Initialize();
+
             PluginManager.CommunicationServiceRegisteredEvent += ComManager.RegisterService;
 
             PluginManager.ExecutePlugins();
 
-            // Why does this Dependency Injection not work on registered service types ;-;
-            ComManager.Initialize();
             discord.MessageCreated += ComManager.MessageCreated;
             discord.ComponentInteractionCreated += InteractionHandler.ComponentInteractionCreated;
 

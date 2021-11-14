@@ -10,6 +10,9 @@ namespace DiscordBot.Models.Configuration
     {
         public bool UseTextPrefix { get; set; } = true;
         public List<string> Prefixes { get; set; } = new List<string>() { "!" };
+
+        public LavaLinkSettings LavaLink { get; set; } = new LavaLinkSettings();
+
         public string TestString { get; set; } = "This is a test string!";
 
         public ReactionSettings CustomReactionSettings { get; set; } = new ReactionSettings();
@@ -23,6 +26,12 @@ namespace DiscordBot.Models.Configuration
             public ulong ShowMeCommandReactionId { get; set; }
 
 
+        }
+
+        public class LavaLinkSettings
+        {
+            public string Hostname { get; set; } = "LavaLink";
+            public int Port { get; internal set; } = 2333;
         }
 
         public static DiscordEmoji GetGuildEmojiOrFallback(DiscordClient client, ulong id, string unicodeFallback)
