@@ -2,6 +2,7 @@
 using DiscordBot.Events;
 using DiscordBot.Extensions;
 using DiscordBot.Managers;
+using DiscordBot.Models.Configuration;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
@@ -19,6 +20,26 @@ namespace DiscordBot.Commands.Core
     [AutoDI.SingletonCreateAndInstall]
     public class LavaLinkCommandsCore
     {
+        private static string _streamProgressBar = string.Empty;
+        public static string StreamProgressBar
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_streamProgressBar))
+                    _streamProgressBar = Utilities.GetAlternatingBar(20, "🎵", "🎹");
+                return _streamProgressBar;
+            }
+        }
+        public static CommandResponse NotPlayingAnything { get; private set; } = new CommandResponse
+        {
+            Embed = Utilities.CreateErrorEmbed("Not playing anything.")
+        };
+        public static CommandResponse NoTracksLoaded { get; private set; } = new CommandResponse
+        {
+            Embed = Utilities.CreateErrorEmbed("There are no tracks loaded.")
+        };
+
+        public Config BotConfig { private get; set; }
         public MusicQueueManager MusicQueueManager { private get; set; }
         public EqualizerManager EqualizerManager { private get; set; }
 
@@ -238,6 +259,110 @@ namespace DiscordBot.Commands.Core
             return new CommandResponse
             {
                 Embed = Utilities.CreateSuccessEmbed($"Volume set to **{volume}**! 🔊")
+            };
+        }
+
+        public async Task<CommandResponse> PauseCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            if(!TryGetGuildConnection(client, guild, out var conn))
+            {
+                return NotPlayingAnything;
+            }
+
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+
+            if (!IsTrackLoaded(conn))
+            {
+                return NoTracksLoaded;
+            }
+
+            queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
+
+            var emoji = Config.GetGuildEmojiOrFallback(client, BotConfig.CustomReactionSettings.PauseCommandReactionId, "⏸️");
+
+            await conn.PauseAsync();
+
+            return new CommandResponse
+            {
+                Reaction = emoji,
+                Embed = Utilities.CreateInfoEmbed($"Playback paused. {emoji}")
+            };
+        }
+
+        public async Task<CommandResponse> ResumeCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            if (!TryGetGuildConnection(client, guild, out var conn, out var node))
+            {
+                var wrapper = new CommandResponseWrapper();
+                conn = await ConnectToMemberVoice(client, invoker, true, wrapper);
+                if (conn == null) return wrapper.ResponseOrEmpty;
+            }
+
+            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+
+            if (!IsTrackLoaded(conn))
+            {
+                var track = queue.LastDequeuedTrack;
+                if (track != null && queue.LastDequeuedSongTime.TotalSeconds > 0)
+                {
+                    Log.Information($"Starting song from position: {Utilities.SpecialFormatTimeSpan(queue.LastDequeuedSongTime)}");
+                    await conn.PlayPartialAsync(track, queue.LastDequeuedSongTime, track.Length);
+                    queue.SaveLastDequeuedSongTime(new TimeSpan());
+                    return new CommandResponse {
+                        Embed = Utilities.CreateInfoEmbed($"Resuming from queue with `{track.Title}`!")
+                    };
+                }
+                return NoTracksLoaded;
+            }
+
+            var emoji = Config.GetGuildEmojiOrFallback(client, BotConfig.CustomReactionSettings.ResumeCommandReactionId, "▶️");
+
+            await conn.ResumeAsync();
+
+            return new CommandResponse
+            {
+                Reaction = emoji,
+                Embed = Utilities.CreateInfoEmbed($"Resuming playback. {emoji}")
+            };
+        }
+
+        public CommandResponse NowPlayingCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            if(!TryGetGuildConnection(client, guild, out var conn))
+            {
+                return NotPlayingAnything;
+            }
+
+            var track = conn.CurrentState.CurrentTrack;
+
+            var pos = conn.CurrentState.PlaybackPosition;
+            var end = track.Length;
+
+            if (track == null || pos == null) return NotPlayingAnything;
+
+            string progressBar = Utilities.GetTextProgressBar((float) track.Position.TotalMilliseconds, (float) end.TotalMilliseconds, (float) pos.TotalMilliseconds, "🟪", "🎶", "▪️");
+            string textProgressCurrent = Utilities.SpecialFormatTimeSpan(pos, end);
+            string textProgressEnd = Utilities.SpecialFormatTimeSpan(end);
+            string textProgress = $"{textProgressCurrent} / {(conn.CurrentState.CurrentTrack.IsStream ? "Live 🔴" : textProgressEnd)}";
+
+            var embed = new DiscordEmbedBuilder()
+                .WithTitle(track.Title)
+                .WithAuthor(track.Author)
+                .WithUrl(track.Uri)
+                .AddField($"Progress ({textProgress})", conn.CurrentState.CurrentTrack.IsStream ? StreamProgressBar : progressBar)
+                .WithTimestamp(DateTime.Now);
+
+            var trackUriString = track.Uri.ToString();
+            if (trackUriString.Contains("youtube.com"))
+            {
+                string ytId = trackUriString.Substring(trackUriString.Length - 11, 11);
+                embed.WithThumbnail($"https://i3.ytimg.com/vi/{ytId}/maxresdefault.jpg");
+                embed.WithColor(DiscordColor.Red);
+            }
+
+            return new CommandResponse
+            {
+                Embed = embed
             };
         }
 

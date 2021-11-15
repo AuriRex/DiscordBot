@@ -25,7 +25,7 @@ namespace DiscordBot.Commands.Application
         {
             if(string.IsNullOrWhiteSpace(searchOrUrl))
             {
-                // TODO: call resume command instead!
+                await ResumeCommand(ctx);
                 return;
             }
 
@@ -128,6 +128,54 @@ namespace DiscordBot.Commands.Application
             await ctx.DeferAsync();
 
             var response = LavaLinkCommandsCore.ClearQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
+
+            if (response.IsEmptyResponse)
+            {
+                await ctx.DeleteResponseAsync();
+                return;
+            }
+
+            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+        }
+
+        [SlashCommand("pause", "Pause playback.")]
+        public async Task PauseCommand(InteractionContext ctx)
+        {
+            await ctx.DeferAsync();
+
+            var response = await LavaLinkCommandsCore.PauseCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
+
+            if (response.IsEmptyResponse)
+            {
+                await ctx.DeleteResponseAsync();
+                return;
+            }
+
+            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+        }
+
+        [SlashCommand("resume", "Resume playback.")]
+        public async Task ResumeCommand(InteractionContext ctx)
+        {
+            await ctx.DeferAsync();
+
+            var response = await LavaLinkCommandsCore.ResumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
+
+            if (response.IsEmptyResponse)
+            {
+                await ctx.DeleteResponseAsync();
+                return;
+            }
+
+            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+        }
+
+        [SlashCommand("now-playing", "What's this jammer that's playing right now called again?")]
+        public async Task NowPlayingCommand(InteractionContext ctx)
+        {
+            await ctx.DeferAsync();
+
+            var response = LavaLinkCommandsCore.NowPlayingCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
             if (response.IsEmptyResponse)
             {

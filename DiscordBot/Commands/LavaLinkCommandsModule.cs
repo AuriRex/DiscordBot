@@ -213,114 +213,50 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync("Equalizer has been reset!");
         }
 
-        private static string _streamProgressBar = string.Empty;
-
         [Command("now-playing")]
         [Aliases("np", "nowplaying")]
         [Description("Show the currently playing song and it's playback position / total length.")]
         public async Task NowPlaying(CommandContext ctx)
         {
-            var conn = await GetGuildConnectionCheckTrackPlaying(ctx);
+            var response = LavaLinkCommandsCore.NowPlayingCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            var track = conn.CurrentState.CurrentTrack;
+            if (response.IsEmptyResponse) return;
 
-            var pos = conn.CurrentState.PlaybackPosition;
-            var end = track.Length;
-
-            if(string.IsNullOrEmpty(_streamProgressBar))
-            {
-                _streamProgressBar = Utilities.GetAlternatingBar(20, "🎵", "🎹");
-            }
-
-            string progressBar = Utilities.GetTextProgressBar((float) track.Position.TotalMilliseconds, (float) end.TotalMilliseconds, (float) pos.TotalMilliseconds, "🟪", "🎶", "▪️");
-            string textProgressCurrent = Utilities.SpecialFormatTimeSpan(pos, end);
-            string textProgressEnd = Utilities.SpecialFormatTimeSpan(end);
-            string textProgress = $"{textProgressCurrent} / {(conn.CurrentState.CurrentTrack.IsStream ? "Live 🔴" : textProgressEnd)}";
-
-            var embed = new DiscordEmbedBuilder()
-                .WithTitle(track.Title)
-                .WithAuthor(track.Author)
-                .WithUrl(track.Uri)
-                .AddField($"Progress ({textProgress})", conn.CurrentState.CurrentTrack.IsStream ? _streamProgressBar : progressBar)
-                .WithTimestamp(DateTime.Now);
-
-            var trackUriString = track.Uri.ToString();
-            if (trackUriString.Contains("youtube.com"))
-            {
-                string ytId = trackUriString.Substring(trackUriString.Length-11, 11);
-                embed.WithThumbnail($"https://i3.ytimg.com/vi/{ytId}/maxresdefault.jpg");
-                embed.WithColor(DiscordColor.Red);
-            }
-
-            var message = new DiscordMessageBuilder()
-                .WithEmbed(embed.Build());
-
-
-            await ctx.RespondAsync(message);
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("pause")]
-        [Description("Pause the song.")]
+        [Description("Pause playback.")]
         public async Task Pause(CommandContext ctx)
         {
-            var conn = await GetGuildConnection(ctx);
+            var response = await LavaLinkCommandsCore.PauseCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
-
-            if (conn.CurrentState.CurrentTrack == null)
+            if (response.Reaction != null)
             {
-                await ctx.RespondAsync("There are no tracks loaded.");
+                await ctx.Message.CreateReactionAsync(response.Reaction);
                 return;
             }
 
-            if(queue != null)
-            {
-                queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
-            }
+            if (response.IsEmptyResponse) return;
 
-            var emoji = Config.GetGuildEmojiOrFallback(ctx.Client, BotConfig.CustomReactionSettings.PauseCommandReactionId, "⏸️");
-
-            await ctx.Message.CreateReactionAsync(emoji);
-
-            await conn.PauseAsync();
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("resume")]
         [Description("Resume playback.")]
         public async Task Resume(CommandContext ctx)
         {
-            var conn = await GetGuildConnection(ctx, true, true, ctx?.Member?.VoiceState?.Channel);
+            var response = await LavaLinkCommandsCore.ResumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
 
-            if(conn == null)
+            if (response.Reaction != null)
             {
+                await ctx.Message.CreateReactionAsync(response.Reaction);
                 return;
             }
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(ctx?.Guild);
+            if (response.IsEmptyResponse) return;
 
-            if (conn.CurrentState.CurrentTrack == null)
-            {
-                if(queue != null)
-                {
-                    var track = queue.GetLastTrackLimited();
-                    if(track != null)
-                    {
-                        Log.Information($"Starting song from position: {Utilities.SpecialFormatTimeSpan(queue.LastDequeuedSongTime)}");
-                        await conn.PlayPartialAsync(track, queue.LastDequeuedSongTime, track.Length);
-                        queue.SaveLastDequeuedSongTime(new TimeSpan());
-                        await ctx.RespondAsync($"Resuming from queue with `{track.Title}`!");
-                        return;
-                    }
-                }
-                await ctx.RespondAsync("There are no tracks loaded.");
-                return;
-            }
-
-            var emoji = Config.GetGuildEmojiOrFallback(ctx.Client, BotConfig.CustomReactionSettings.ResumeCommandReactionId, "▶️");
-
-            await ctx.Message.CreateReactionAsync(emoji);
-
-            await conn.ResumeAsync();
+            await ctx.RespondAsync(response.GetMessageBuilder());
         }
 
         [Command("join")]
@@ -453,23 +389,5 @@ namespace DiscordBot.Commands
         {
             return await GetGuildConnection(ctx.Client, ctx.Member, sendErrorMessages ? ctx : null, tryToConnect, voiceChannel, musicQueueManager);
         }
-
-        [Obsolete]
-        public static async Task<LavalinkGuildConnection> GetGuildConnectionCheckTrackPlaying(CommandContext ctx, bool sendErrorMessages = true, bool tryToConnect = false, DiscordChannel voiceChannel = null, MusicQueueManager musicQueueManager = null)
-        {
-            var conn = await GetGuildConnection(ctx, sendErrorMessages, tryToConnect, voiceChannel, musicQueueManager);
-
-            if (conn == null) return null;
-
-            if (conn?.CurrentState?.CurrentTrack == null)
-            {
-                if (sendErrorMessages)
-                    await ctx.RespondAsync("There are no tracks loaded.");
-                return null;
-            }
-
-            return conn;
-        }
-
     }
 }
