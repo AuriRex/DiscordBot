@@ -210,6 +210,7 @@ namespace DiscordBot
             commands.RegisterCommands(Assembly.GetExecutingAssembly());
 
             slash.RegisterCommands(Assembly.GetExecutingAssembly(), 871002087692058625);
+            slash.RegisterCommands(Assembly.GetExecutingAssembly());
 
             commands.CommandExecuted += (sender, e) => {
                 string where = e.Context.Channel.IsPrivate ? $"DM Channel with id:'{e.Context.Channel?.Id}'" : $"'{e.Context.Guild?.Name}'-'{e.Context.Channel?.Name}' Ids: '{e.Context.Guild?.Id}'-'{e.Context.Channel?.Id}'";

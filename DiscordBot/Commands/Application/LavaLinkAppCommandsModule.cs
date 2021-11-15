@@ -1,16 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using DiscordBot.Commands.Core;
+﻿using DiscordBot.Commands.Core;
+using DiscordBot.Extensions;
 using DiscordBot.Managers;
 using DSharpPlus;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using Serilog;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace DiscordBot.Commands.Application
 {
@@ -31,14 +29,7 @@ namespace DiscordBot.Commands.Application
 
             await ctx.DeferAsync();
 
-            var response = await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, searchOrUrl);
-
-            if(response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await (await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, searchOrUrl)).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("last-song", "Replay the last played song.")]
@@ -46,15 +37,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = await LavaLinkCommandsCore.PlayLastTrackCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await (await LavaLinkCommandsCore.PlayLastTrackCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member)).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("volume", "Change the playback volume.")]
@@ -62,16 +45,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = await LavaLinkCommandsCore.VolumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, (volume == -1 ? null : (int?) volume));
-
-            if(response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
-
+            await (await LavaLinkCommandsCore.VolumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, (volume == -1 ? null : (int?) volume))).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("skip", "Skip to the next song.")]
@@ -79,15 +53,21 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = await LavaLinkCommandsCore.ForceSkipCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
+            await (await LavaLinkCommandsCore.ForceSkipCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member)).DeleteOrEdit(ctx);
+        }
 
-            if (response.IsEmptyResponse)
+        [SlashCommand("equalizer", "Change equalizer settings.")]
+        public async Task EqualizerCommand(InteractionContext ctx, [Option("profile", "Load a predefined profile instead")] string profile = "")
+        {
+            await ctx.DeferAsync();
+
+            if(string.IsNullOrWhiteSpace(profile))
             {
-                await ctx.DeleteResponseAsync();
+                await LavaLinkCommandsCore.EqualizerCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member).DeleteOrEdit(ctx);
                 return;
             }
 
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await (await LavaLinkCommandsCore.EqualizerApplyProfileCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, profile)).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("shuffle", "Randomizes the order of the songs in the Queue.")]
@@ -95,15 +75,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = LavaLinkCommandsCore.ShuffleQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await LavaLinkCommandsCore.ShuffleQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("queue-mode", "Change the way the Queue behaves and in extension the way the next song is chosen.")]
@@ -111,15 +83,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = LavaLinkCommandsCore.QueueModeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, queueMode);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await LavaLinkCommandsCore.QueueModeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, queueMode).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("clear", "Remove all songs from the Queue.")]
@@ -127,15 +91,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = LavaLinkCommandsCore.ClearQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await LavaLinkCommandsCore.ClearQueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("pause", "Pause playback.")]
@@ -143,15 +99,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = await LavaLinkCommandsCore.PauseCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await (await LavaLinkCommandsCore.PauseCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member)).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("resume", "Resume playback.")]
@@ -159,15 +107,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = await LavaLinkCommandsCore.ResumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await (await LavaLinkCommandsCore.ResumeCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member)).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("now-playing", "What's this jammer that's playing right now called again?")]
@@ -175,15 +115,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = LavaLinkCommandsCore.NowPlayingCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await LavaLinkCommandsCore.NowPlayingCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member).DeleteOrEdit(ctx);
         }
 
         [SlashCommand("queue", "Show what's up next!")]
@@ -191,15 +123,7 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            var response = LavaLinkCommandsCore.QueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
-
-            if (response.IsEmptyResponse)
-            {
-                await ctx.DeleteResponseAsync();
-                return;
-            }
-
-            await ctx.EditResponseAsync(response.GetWebhookBuilder());
+            await LavaLinkCommandsCore.QueueCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member).DeleteOrEdit(ctx);
         }
 
         [ContextMenu(ApplicationCommandType.MessageContextMenu, "Play this")]
@@ -247,15 +171,7 @@ namespace DiscordBot.Commands.Application
                         return;
                     }
 
-                    var response = await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, matchedString);
-
-                    if(response.IsEmptyResponse)
-                    {
-                        await ctx.DeleteResponseAsync();
-                        return;
-                    }
-
-                    await ctx.EditResponseAsync(response.GetWebhookBuilder());
+                    await (await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, matchedString)).DeleteOrEdit(ctx);
                 }
                 
                 return;

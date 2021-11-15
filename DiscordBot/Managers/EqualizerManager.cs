@@ -9,6 +9,8 @@ namespace DiscordBot.Managers
     [AutoDI.Singleton]
     public class EqualizerManager
     {
+        public const string RESET_PROFILE = "reset";
+
         // 🙃
         internal static EqualizerManager Instance { get; private set; }
 
@@ -111,7 +113,7 @@ namespace DiscordBot.Managers
         }
 
         /// <summary>
-        /// Restores the last applied settings or resets it all to zero if the is none to reestore.
+        /// Restores the last applied settings or resets it all to zero if the is none to restore.
         /// </summary>
         public void RestoreFromLastAppliedSettings()
         {
@@ -203,6 +205,17 @@ namespace DiscordBot.Managers
             if (bandIndex < 0 || bandIndex >= BAND_LENGTH) throw new ArgumentException($"{nameof(bandIndex)} must be between 0 and {BAND_LENGTH - 1} (including)");
 
             return _bandValues[bandIndex] <= BAND_VALUE_MIN;
+        }
+
+        /// <summary>
+        /// Reset the band to all zeros
+        /// </summary>
+        public void Reset()
+        {
+            for (int i = 0; i < _bandValues.Length; i++)
+            {
+                _bandValues[i] = 0;
+            }
         }
     }
 }

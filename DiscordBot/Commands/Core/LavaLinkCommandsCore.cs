@@ -11,7 +11,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using static DiscordBot.Events.CommandResponse;
 
@@ -68,7 +67,7 @@ namespace DiscordBot.Commands.Core
 
             if(!musicPlayerData.AllowNonPresentMemberControl)
             {
-                if(!IsMemberInMusicChannel(client, guild, invoker))
+                if(!IsMemberInMusicChannel(conn, invoker))
                 {
                     return NotInSameChannel;
                 }
@@ -242,7 +241,7 @@ namespace DiscordBot.Commands.Core
 
             if (!musicPlayerData.AllowNonPresentMemberControl)
             {
-                if (!IsMemberInMusicChannel(client, guild, invoker))
+                if (!IsMemberInMusicChannel(conn, invoker))
                 {
                     return new CommandResponse
                     {
@@ -287,7 +286,7 @@ namespace DiscordBot.Commands.Core
 
             if (!musicPlayerData.AllowNonPresentMemberControl)
             {
-                if (!IsMemberInMusicChannel(client, guild, invoker))
+                if (!IsMemberInMusicChannel(conn, invoker))
                 {
                     return NotInSameChannel;
                 }
@@ -323,7 +322,7 @@ namespace DiscordBot.Commands.Core
 
             if (!musicPlayerData.AllowNonPresentMemberControl)
             {
-                if (!IsMemberInMusicChannel(client, guild, invoker))
+                if (!IsMemberInMusicChannel(conn, invoker))
                 {
                     return NotInSameChannel;
                 }
@@ -361,7 +360,7 @@ namespace DiscordBot.Commands.Core
 
             if (!musicPlayerData.AllowNonPresentMemberControl)
             {
-                if (!IsMemberInMusicChannel(client, guild, invoker))
+                if (!IsMemberInMusicChannel(conn, invoker))
                 {
                     return NotInSameChannel;
                 }
@@ -391,6 +390,76 @@ namespace DiscordBot.Commands.Core
                 Reaction = emoji,
                 Embed = Utilities.CreateInfoEmbed($"Resuming playback. {emoji}")
             };
+        }
+
+        public async Task<CommandResponse> LeaveCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
+        {
+            if (!TryGetGuildConnection(client, guild, out var conn))
+            {
+                return BotNotConnected;
+            }
+
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(conn, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
+
+            if (!IsMemberInMusicChannel(conn, invoker))
+            {
+                return NotInSameChannel;
+            }
+
+            if (IsTrackLoaded(conn))
+            {
+                musicPlayerData.Queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
+            }
+
+            await conn.DisconnectAsync();
+
+            var emoji = Config.GetGuildEmojiOrFallback(client, BotConfig.CustomReactionSettings.LeaveCommandReactionId, "👋");
+
+            return new CommandResponse
+            {
+                Reaction = emoji,
+                Embed = Utilities.CreateInfoEmbed($"{emoji}")
+            };
+        }
+
+        // TODO
+        public async Task<CommandResponse> EqualizerApplyProfileCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, string profile)
+        {
+            var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(guild);
+
+            var invalidProfile = new CommandResponse
+            {
+                Embed = Utilities.CreateErrorEmbed($"Invalid or unknown profile '`{profile}`' provided!")
+            };
+
+            if (string.IsNullOrWhiteSpace(profile)) return invalidProfile;
+
+            if(!TryGetGuildConnection(client, guild, out var conn))
+            {
+                return BotNotConnected;
+            }
+
+            if(profile == EqualizerManager.RESET_PROFILE)
+            {
+                eqsettings.Reset();
+                await conn.ResetEqualizerAsync();
+                return new CommandResponse
+                {
+                    Embed = Utilities.CreateInfoEmbed("Equalizer has been reset!")
+                };
+            }
+
+            // TODO
+            // EqualizerManager . GetProfile(profile) ?
+            return CommandResponse.Empty;
         }
 
         public CommandResponse NowPlayingCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
@@ -787,6 +856,11 @@ namespace DiscordBot.Commands.Core
                 return false;
             }
 
+            return IsMemberInMusicChannel(conn, member);
+        }
+
+        public static bool IsMemberInMusicChannel(LavalinkGuildConnection conn, DiscordMember member)
+        {
             if (conn.Channel == member.VoiceState?.Channel)
             {
                 return true;

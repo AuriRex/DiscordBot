@@ -1,4 +1,4 @@
-﻿using DiscordBot.Commands;
+﻿using DiscordBot.Commands.Core;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
@@ -46,11 +46,14 @@ namespace DiscordBot.Managers
 
             if (customId.Equals(CustomComponentIds.EQ_APPLY))
             {
+                if (!LavaLinkCommandsCore.TryGetGuildConnection(client, eventArgs.Guild, out var conn))
+                {
+                    eqSettings.GetBands();
+                    await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(CreateEQSettingsEmbed(eqSettings, eqOffset, EditingState.Error).Build()));
+                    return;
+                }
+
                 await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(CreateEQSettingsEmbed(eqSettings, eqOffset, EditingState.Saved).Build()));
-
-                var member = (DiscordMember) eventArgs.Interaction.User;
-
-                var conn = await LavaLinkCommandsModule.GetGuildConnection(client, member, null, false, member.VoiceState.Channel, null);
 
                 await conn.AdjustEqualizerAsync(eqSettings.GetBands());
 
@@ -120,7 +123,8 @@ namespace DiscordBot.Managers
         {
             Canceled,
             Editing,
-            Saved
+            Saved,
+            Error
         }
 
         public static DiscordEmbedBuilder CreateEQSettingsEmbed(EQSettings eqSettings, EQOffset eqOffset, EditingState editingState)
@@ -145,6 +149,9 @@ namespace DiscordBot.Managers
                     break;
                 case EditingState.Saved:
                     embed.WithColor(DiscordColor.Green);
+                    break;
+                case EditingState.Error:
+                    embed.WithColor(DiscordColor.IndianRed);
                     break;
             }
 
