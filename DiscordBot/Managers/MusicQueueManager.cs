@@ -50,6 +50,7 @@ namespace DiscordBot.Managers
             conn.TrackException += OnTrackException;
         }
 
+        // TODO: improve this
         private async Task OnTrackException(LavalinkGuildConnection sender, TrackExceptionEventArgs e)
         {
             Log.Warning($"{nameof(OnTrackException)} called!: Error:{e.Error}, TrackTitle:{e.Track?.Title}");

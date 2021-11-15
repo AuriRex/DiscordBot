@@ -20,6 +20,7 @@ namespace DiscordBot.Commands.Core
     [AutoDI.SingletonCreateAndInstall]
     public class LavaLinkCommandsCore
     {
+        #region other_stuff
         private static string _streamProgressBar = string.Empty;
         public static string StreamProgressBar
         {
@@ -38,6 +39,15 @@ namespace DiscordBot.Commands.Core
         {
             Embed = Utilities.CreateErrorEmbed("There are no tracks loaded.")
         };
+        public static CommandResponse NotInSameChannel { get; private set; } = new CommandResponse
+        {
+            Embed = Utilities.CreateErrorEmbed("You have to be in the voice channel to control the bot.")
+        };
+        public static CommandResponse BotNotConnected { get; private set; } = new CommandResponse
+        {
+            Embed = Utilities.CreateErrorEmbed("I am not connected to a voice channel.")
+        };
+        #endregion other_stuff
 
         public Config BotConfig { private get; set; }
         public MusicQueueManager MusicQueueManager { private get; set; }
@@ -60,10 +70,7 @@ namespace DiscordBot.Commands.Core
             {
                 if(!IsMemberInMusicChannel(client, guild, invoker))
                 {
-                    return new CommandResponse
-                    {
-                        Embed = Utilities.CreateErrorEmbed("You have to be in the voice channel to control the bot.")
-                    };
+                    return NotInSameChannel;
                 }
             }
 
@@ -94,9 +101,20 @@ namespace DiscordBot.Commands.Core
                 || finalLoadResult.LoadResultType == LavalinkLoadResultType.NoMatches
                 || finalLoadResult.Tracks.Count() == 0)
             {
+                string error = finalLoadResult.Exception.Message;
+
+                if(string.IsNullOrWhiteSpace(error))
+                {
+                    error = loadResult.Exception.Message;
+                    if (string.IsNullOrWhiteSpace(error))
+                    {
+                        error = "Track loading failed";
+                    }
+                }
+
                 return new CommandResponse
                 {
-                    Embed = Utilities.CreateErrorEmbed($"Track search failed for {searchOrUrl}. ({finalLoadResult.Exception.Message})")
+                    Embed = Utilities.CreateErrorEmbed($"Track search failed for {searchOrUrl}. ({error})")
                 };
             }
 
@@ -160,6 +178,14 @@ namespace DiscordBot.Commands.Core
             var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
             var queue = musicPlayerData.Queue;
 
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
+
             var lastTrack = queue.LastDequeuedTrack;
 
             if (lastTrack == null)
@@ -180,7 +206,7 @@ namespace DiscordBot.Commands.Core
             }
 
 
-            if (conn.CurrentState.CurrentTrack == null)
+            if (!IsTrackLoaded(conn))
             {
                 var nextTrack = queue.DequeueTrack();
 
@@ -198,19 +224,32 @@ namespace DiscordBot.Commands.Core
 
                 return new CommandResponse
                 {
-                    Embed = Utilities.CreateInfoEmbed($"Replaying last song: `{nextTrack.Title}`.")
+                    Embed = Utilities.CreateInfoEmbed($"Replaying last song: `{nextTrack.Title}`.", nextTrack.Uri.ToString())
                 };
             }
 
             return new CommandResponse
             {
-                Embed = Utilities.CreateInfoEmbed($"Added last played track `{lastTrack?.Title}` to the queue.")
+                Embed = Utilities.CreateInfoEmbed($"Added last played track `{lastTrack?.Title}` to the queue.", lastTrack.Uri.ToString())
             };
         }
 
         public async Task<CommandResponse> ForceSkipCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
         {
             TryGetGuildConnection(client, guild, out var conn);
+
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return new CommandResponse
+                    {
+                        Embed = Utilities.CreateErrorEmbed("You have to be in the voice channel to control the bot.")
+                    };
+                }
+            }
 
             if (!IsTrackLoaded(conn))
             {
@@ -236,12 +275,22 @@ namespace DiscordBot.Commands.Core
 
             var eqsettings = EqualizerManager.GetOrCreateEqualizerSettingsForGuild(guild);
 
-            if(!volume.HasValue || conn == null)
+            if (!volume.HasValue || conn == null)
             {
                 return new CommandResponse
                 {
                     Embed = Utilities.CreateInfoEmbed($"Current Volume is at **{eqsettings.Volume}**! 🔊")
                 };
+            }
+
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
             }
 
             if (volume < 0 || volume > 1000)
@@ -269,7 +318,16 @@ namespace DiscordBot.Commands.Core
                 return NotPlayingAnything;
             }
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+            var queue = musicPlayerData.Queue;
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
 
             if (!IsTrackLoaded(conn))
             {
@@ -298,7 +356,16 @@ namespace DiscordBot.Commands.Core
                 if (conn == null) return wrapper.ResponseOrEmpty;
             }
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+            var queue = musicPlayerData.Queue;
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
 
             if (!IsTrackLoaded(conn))
             {
@@ -380,7 +447,16 @@ namespace DiscordBot.Commands.Core
 
         public CommandResponse ShuffleQueueCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
         {
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+            var queue = musicPlayerData.Queue;
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
 
             if (queue.Count <= 1)
             {
@@ -426,8 +502,17 @@ namespace DiscordBot.Commands.Core
 
         public CommandResponse QueueModeCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, MusicQueueManager.QueueMode queueMode)
         {
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
 
-            MusicQueueManager.GetOrCreateQueueForGuild(guild).Mode = queueMode;
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
+
+            musicPlayerData.Queue.Mode = queueMode;
 
             if (QueueModeReactions.TryGetValue(queueMode, out DiscordEmoji emoji))
             {
@@ -448,10 +533,19 @@ namespace DiscordBot.Commands.Core
         {
             if (!TryGetGuildConnection(client, guild, out var conn))
             {
-                return CommandResponse.Empty;
+                return BotNotConnected;
             }
 
-            var queue = MusicQueueManager.GetOrCreateQueueForGuild(guild);
+            var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+            var queue = musicPlayerData.Queue;
+
+            if (!musicPlayerData.AllowNonPresentMemberControl)
+            {
+                if (!IsMemberInMusicChannel(client, guild, invoker))
+                {
+                    return NotInSameChannel;
+                }
+            }
 
             if (queue.IsEmpty)
             {
@@ -573,10 +667,7 @@ namespace DiscordBot.Commands.Core
         {
             if (!autoConnect)
             {
-                responseWrapper.SetResponse(new CommandResponse
-                {
-                    Embed = Utilities.CreateErrorEmbed("I am not connected to a voice channel.")
-                });
+                responseWrapper.SetResponse(BotNotConnected);
                 return null;
             }
 

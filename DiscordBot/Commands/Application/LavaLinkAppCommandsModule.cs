@@ -221,6 +221,11 @@ namespace DiscordBot.Commands.Application
 
             var match = URL_REGEX.Match(msgContent);
 
+            var failedEmbed = new DiscordEmbedBuilder();
+            failedEmbed.Title = "Couldn't find a link to play in the selected message!";
+            failedEmbed.Url = ctx.TargetMessage.JumpLink.ToString();
+            failedEmbed.Color = DiscordColor.Red;
+
             if (match.Success)
             {
                 foreach(Group g in match.Groups)
@@ -234,6 +239,14 @@ namespace DiscordBot.Commands.Application
 
 
                     Log.Information($"[{nameof(CtxPlayThis)}] URL Regex matched: \"{matchedString}\"");
+
+                    if(matchedString.StartsWith("https://discord.com/channels/"))
+                    {
+                        // Ignore links to messages
+                        await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(failedEmbed.Build()));
+                        return;
+                    }
+
                     var response = await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, matchedString);
 
                     if(response.IsEmptyResponse)
@@ -250,13 +263,7 @@ namespace DiscordBot.Commands.Application
 
             Log.Information($"[{nameof(CtxPlayThis)}] URL Regex match failed: \"{msgContent}\"");
 
-            var failedEmbed = new DiscordEmbedBuilder();
-            failedEmbed.Title = "Couldn't find a link to play in the selected message!";
-            failedEmbed.Url = ctx.TargetMessage.JumpLink.ToString();
-            failedEmbed.Color = DiscordColor.Red;
-
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(failedEmbed.Build()));
-
         }
 
     }
