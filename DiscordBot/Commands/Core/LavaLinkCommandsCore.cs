@@ -238,6 +238,7 @@ namespace DiscordBot.Commands.Core
             TryGetGuildConnection(client, guild, out var conn);
 
             var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
+            var queue = musicPlayerData.Queue;
 
             if (!musicPlayerData.AllowNonPresentMemberControl)
             {
@@ -260,7 +261,17 @@ namespace DiscordBot.Commands.Core
 
             var title = conn.CurrentState.CurrentTrack.Title;
 
-            await conn.SeekAsync(conn.CurrentState.CurrentTrack.Length);
+
+            if (!queue.IsEmpty)
+            {
+                var track = queue.DequeueTrack();
+                if(track != null)
+                    await conn.PlayAsync(track);
+            }
+            else
+            {
+                await conn.StopAsync();
+            }
 
             return new CommandResponse
             {
@@ -333,7 +344,8 @@ namespace DiscordBot.Commands.Core
                 return NoTracksLoaded;
             }
 
-            queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
+            if(conn.CurrentState.PlaybackPosition.TotalSeconds >= 3)
+                queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
 
             var emoji = Config.GetGuildEmojiOrFallback(client, BotConfig.CustomReactionSettings.PauseCommandReactionId, "⏸️");
 
@@ -369,7 +381,7 @@ namespace DiscordBot.Commands.Core
             if (!IsTrackLoaded(conn))
             {
                 var track = queue.LastDequeuedTrack;
-                if (track != null && queue.LastDequeuedSongTime.TotalSeconds > 0)
+                if (track != null && queue.LastDequeuedSongTime != null && queue.LastDequeuedSongTime.TotalSeconds > 2)
                 {
                     Log.Information($"Starting song from position: {Utilities.SpecialFormatTimeSpan(queue.LastDequeuedSongTime)}");
                     await conn.PlayPartialAsync(track, queue.LastDequeuedSongTime, track.Length);
@@ -465,6 +477,11 @@ namespace DiscordBot.Commands.Core
         public CommandResponse NowPlayingCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
         {
             if(!TryGetGuildConnection(client, guild, out var conn))
+            {
+                return NotPlayingAnything;
+            }
+
+            if(!IsTrackLoaded(conn))
             {
                 return NotPlayingAnything;
             }

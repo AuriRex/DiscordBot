@@ -19,14 +19,8 @@ namespace DiscordBot.Commands.Application
         static readonly Regex URL_REGEX = new Regex("https?:\\/\\/[a-zA-Z.0-9_\\-\\+\\#\\:\\;\\*\\%\\&\\!\\?\\=\\/]+");
 
         [SlashCommand("play", "Play a YouTube video or a file in a discord channel!")]
-        public async Task PlayCommand(InteractionContext ctx, [Option("SearchOrURL", "Search term or link to video / file."), RemainingText] string searchOrUrl = "")
+        public async Task PlayCommand(InteractionContext ctx, [Option("SearchOrURL", "Search term or link to video / file."), RemainingText] string searchOrUrl)
         {
-            if(string.IsNullOrWhiteSpace(searchOrUrl))
-            {
-                await ResumeCommand(ctx);
-                return;
-            }
-
             await ctx.DeferAsync();
 
             await (await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, searchOrUrl)).DeleteOrEdit(ctx);

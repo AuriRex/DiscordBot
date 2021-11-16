@@ -171,7 +171,7 @@ namespace DiscordBot.Commands
         public async Task Join(CommandContext ctx, DiscordChannel channel)
         {
             var responseWrapper = new CommandResponse.CommandResponseWrapper();
-            var conn = await LavaLinkCommandsCore.ConnectToVoice(ctx.Client, ctx.Channel, responseWrapper);
+            var conn = await LavaLinkCommandsCore.ConnectToVoice(ctx.Client, channel, responseWrapper);
             var response = responseWrapper.ResponseOrEmpty;
 
             if(response.IsEmptyResponse) return;
