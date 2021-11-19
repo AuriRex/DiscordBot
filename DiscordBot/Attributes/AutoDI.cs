@@ -19,6 +19,12 @@ namespace DiscordBot.Attributes
         }
 
         [AttributeUsage(AttributeTargets.Class)]
+        public class SingletonCreateAndInstall : DiscordBotDIA
+        {
+
+        }
+
+        [AttributeUsage(AttributeTargets.Class)]
         public class Transient : DiscordBotDIA
         {
 

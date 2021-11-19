@@ -1,4 +1,4 @@
-﻿using DiscordBot.Commands;
+﻿using DiscordBot.Commands.Core;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
@@ -46,11 +46,14 @@ namespace DiscordBot.Managers
 
             if (customId.Equals(CustomComponentIds.EQ_APPLY))
             {
-                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset, EditingState.Saved).Build()));
+                if (!LavaLinkCommandsCore.TryGetGuildConnection(client, eventArgs.Guild, out var conn))
+                {
+                    eqSettings.GetBands();
+                    await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(CreateEQSettingsEmbed(eqSettings, eqOffset, EditingState.Error).Build()));
+                    return;
+                }
 
-                var member = (DiscordMember) eventArgs.Interaction.User;
-
-                var conn = await LavaLinkCommandsModule.GetGuildConnection(client, member, null, false, member.VoiceState.Channel, null);
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(CreateEQSettingsEmbed(eqSettings, eqOffset, EditingState.Saved).Build()));
 
                 await conn.AdjustEqualizerAsync(eqSettings.GetBands());
 
@@ -61,7 +64,7 @@ namespace DiscordBot.Managers
             {
                 eqSettings.RestoreFromLastAppliedSettings();
 
-                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset, EditingState.Canceled).Build()));
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(CreateEQSettingsEmbed(eqSettings, eqOffset, EditingState.Canceled).Build()));
 
                 return;
             }
@@ -92,7 +95,7 @@ namespace DiscordBot.Managers
             catch (Exception ex)
             {
                 Log.Error($"An error occured while trying to handle EQSettings Interactions: {ex.Message}");
-                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(BuildEQSettingsEmbed(eqSettings, eqOffset, EditingState.Canceled).Build()));
+                await eventArgs.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage, new DiscordInteractionResponseBuilder().AddEmbed(CreateEQSettingsEmbed(eqSettings, eqOffset, EditingState.Canceled).Build()));
                 return;
             }
 
@@ -120,19 +123,16 @@ namespace DiscordBot.Managers
         {
             Canceled,
             Editing,
-            Saved
+            Saved,
+            Error
         }
 
-        public static DiscordEmbedBuilder BuildEQSettingsEmbed(EQSettings eqSettings, EQOffset eqOffset, EditingState editingState)
+        public static DiscordEmbedBuilder CreateEQSettingsEmbed(EQSettings eqSettings, EQOffset eqOffset, EditingState editingState)
         {
             var embed = new DiscordEmbedBuilder();
 
             embed.WithTitle("Equalizer Settings");
             embed.WithAuthor($"Volume: {eqSettings.Volume}");
-            //embed.WithDescription("###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############\n###############");
-
-            // POC
-            //embed.WithDescription("◾5️⃣5️⃣5️⃣5️⃣◾◾◾◾◾◾◾◾◾◾\n4️⃣5️⃣5️⃣5️⃣5️⃣◾◾◾◾◾◾◾◾◾◾\n5️⃣5️⃣5️⃣5️⃣5️⃣◾◾◾◾◾◾◾◾◾◾\n5️⃣5️⃣5️⃣5️⃣5️⃣◾◾◾◾◾◾1️⃣◾◾◾\n" + "🟪🟩🟪🟩🟪⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜\n" + "🟨🟨🟨🟨🟨◾◾◾◾◾◾◾◾◾◾\n🟨🟨🟨🟨🟨◾◾◾◾◾◾◾◾◾◾\n🟧🟧🟧🟧🟧◾◾◾◾◾◾◾◾◾◾\n🟧🟧🟧🟧◾◾◾◾◾◾◾◾◾◾◾\n🟥🟥🟥◾◾◾◾◾◾◾◾◾◾◾◾\n");
 
             ConstructEQSettingsEmbedContent(embed, eqSettings, eqOffset);
 
@@ -150,8 +150,10 @@ namespace DiscordBot.Managers
                 case EditingState.Saved:
                     embed.WithColor(DiscordColor.Green);
                     break;
+                case EditingState.Error:
+                    embed.WithColor(DiscordColor.IndianRed);
+                    break;
             }
-
 
             return embed;
         }
@@ -160,13 +162,23 @@ namespace DiscordBot.Managers
         {
             var builder = new DiscordMessageBuilder();
 
-
-            var embed = BuildEQSettingsEmbed(eqSettings, eqOffset, editingState);
-
-
-            // Collapse every 5 down 🟦
+            var embed = CreateEQSettingsEmbed(eqSettings, eqOffset, editingState);
 
             builder.WithEmbed(embed);
+
+            foreach(var components in CreateEQSettingsComponents(eqSettings, eqOffset))
+            {
+                builder.AddComponents(components);
+            }
+
+            return builder;
+        }
+
+        public static List<DiscordComponent[]> CreateEQSettingsComponents(EQSettings eqSettings, EQOffset eqOffset)
+        {
+            int offset = (int) eqOffset;
+
+            var components = new List<DiscordComponent[]>();
 
             // Create the options for the user to pick
             var options = new List<DiscordSelectComponentOption>()
@@ -179,17 +191,12 @@ namespace DiscordBot.Managers
             // Make the dropdown
             var dropdown = new DiscordSelectComponent(CustomComponentIds.EQ_DROPDOWN, null, options, false, 1, 1);
 
-
-            builder.AddComponents(new DiscordComponent[]
+            components.Add(new DiscordComponent[]
             {
                 dropdown
             });
 
-            int offset = (int) eqOffset;
-
-
-
-            builder.AddComponents(new DiscordComponent[] {
+            components.Add(new DiscordComponent[] {
                 new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset}", null, eqSettings.IsAtMax(offset), new DiscordComponentEmoji("⬆️")),
                 new DiscordButtonComponent(ButtonStyle.Success, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+1}", null, eqSettings.IsAtMax(offset+1), new DiscordComponentEmoji("⬆️")),
                 new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+2}", null, eqSettings.IsAtMax(offset+2), new DiscordComponentEmoji("⬆️")),
@@ -197,7 +204,7 @@ namespace DiscordBot.Managers
                 new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_INCREASE_VALUE_PREFIX}{offset+4}", null, eqSettings.IsAtMax(offset+4), new DiscordComponentEmoji("⬆️"))
             });
 
-            builder.AddComponents(new DiscordComponent[] {
+            components.Add(new DiscordComponent[] {
                 new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset}", null, eqSettings.IsAtMin(offset), new DiscordComponentEmoji("⬇️")),
                 new DiscordButtonComponent(ButtonStyle.Success, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+1}", null, eqSettings.IsAtMin(offset+1), new DiscordComponentEmoji("⬇️")),
                 new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+2}", null, eqSettings.IsAtMin(offset+2), new DiscordComponentEmoji("⬇️")),
@@ -205,12 +212,12 @@ namespace DiscordBot.Managers
                 new DiscordButtonComponent(ButtonStyle.Primary, $"{CustomComponentIds.EQ_DECREASE_VALUE_PREFIX}{offset+4}", null, eqSettings.IsAtMin(offset+4), new DiscordComponentEmoji("⬇️"))
             });
 
-            builder.AddComponents(new DiscordComponent[] {
+            components.Add(new DiscordComponent[] {
                 new DiscordButtonComponent(ButtonStyle.Success, CustomComponentIds.EQ_APPLY, "Apply", false),
                 new DiscordButtonComponent(ButtonStyle.Danger, CustomComponentIds.EQ_CANCEL, "Cancel", false),
             });
 
-            return builder;
+            return components;
         }
 
         private static readonly string[] _numbers = new string[]

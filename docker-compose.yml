@@ -9,8 +9,10 @@ services:
       - "2333:2333"
     volumes:
       - lavalink-data:/opt/Lavalink
-    networks:
-      - test
+    dns:
+      - 1.1.1.1
+    # networks:
+    #   - test
   DiscordBot:
     image: "discord-bot-image"
     depends_on:
@@ -23,9 +25,11 @@ services:
       - lavalink_auth
     volumes:
       - discord-bot-data:/DiscordBot/data
+    dns:
+      - 1.1.1.1
     command: ["./wait-for-it.sh", "LavaLink:2333", "--", "dotnet", "DiscordBot.dll"]
-    networks:
-      - test
-networks:
-  test:
-    driver: bridge
+    # networks:
+    #   - test
+# networks:
+#   test:
+#     driver: bridge

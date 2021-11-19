@@ -50,6 +50,7 @@ namespace DiscordBot.Managers
             conn.TrackException += OnTrackException;
         }
 
+        // TODO: improve this
         private async Task OnTrackException(LavalinkGuildConnection sender, TrackExceptionEventArgs e)
         {
             Log.Warning($"{nameof(OnTrackException)} called!: Error:{e.Error}, TrackTitle:{e.Track?.Title}");
@@ -126,6 +127,7 @@ namespace DiscordBot.Managers
 
             public DiscordChannel LastUsedPlayControlChannel { get; set; }
             public DiscordMessage LastErrorMessage { get; internal set; }
+            public bool AllowNonPresentMemberControl { get; set; } = false;
 
             public MusicPlayerDataForGuild(DiscordGuild guild)
             {
@@ -344,13 +346,13 @@ namespace DiscordBot.Managers
 
         public enum QueueMode
         {
-            [AttachedStringAttribute("▶️")]
+            [AttachedString("▶️")]
             Default,
-            [AttachedStringAttribute("🔁")]
+            [AttachedString("🔁")]
             Looping,
-            [AttachedStringAttribute("🎲")]
+            [AttachedString("🎲")]
             Random,
-            [AttachedStringAttribute("🔀")]
+            [AttachedString("🔀")]
             RandomLooping
         }
     }
