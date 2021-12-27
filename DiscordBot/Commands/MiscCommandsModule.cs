@@ -1,4 +1,5 @@
-﻿using DiscordBot.Models.Configuration;
+﻿using DiscordBot.Managers;
+using DiscordBot.Models.Configuration;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
@@ -13,6 +14,7 @@ namespace DiscordBot.Commands
 {
     public class MiscCommandsModule : BaseCommandModule
     {
+        public ScriptManager ScriptManager { private get; set; }
         public Config BotConfig { private get; set; }
         public Random Random { private get; set; }
 
@@ -76,5 +78,38 @@ namespace DiscordBot.Commands
             await ctx.Message.CreateReactionAsync(emoji);
         }
 
+        [Command("eval")]
+        [RequireOwner]
+        public async Task EvalCommand(CommandContext ctx, [RemainingText] string code)
+        {
+            await ctx.TriggerTypingAsync();
+
+            if(code.StartsWith("```cs"))
+            {
+                code = code.Substring(5);
+                code = code.Substring(0, code.Length - 3);
+            }
+
+            _ = Task.Run(async () => {
+                string result = string.Empty;
+
+                ScriptManager.SetData(ctx);
+
+                try
+                {
+                    result = await ScriptManager.Evaluate(code);
+                    if(string.IsNullOrWhiteSpace(result))
+                    {
+                        result = "Execution completed.";
+                    }
+                }
+                catch(Exception ex)
+                {
+                    result = $"{ex}: {ex.Message}\n{ex.StackTrace}";
+                }
+
+                await ctx.RespondAsync(result);
+            });
+        }
     }
 }

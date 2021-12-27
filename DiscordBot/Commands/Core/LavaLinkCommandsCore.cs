@@ -885,6 +885,11 @@ namespace DiscordBot.Commands.Core
 
             return false;
         }
+
+        public static bool IsBotConnected(DiscordClient client, DiscordGuild guild)
+        {
+            return TryGetGuildConnection(client, guild, out var _, out var _);
+        }
         #endregion util
     }
 }

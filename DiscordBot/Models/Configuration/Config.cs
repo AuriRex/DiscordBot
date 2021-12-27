@@ -17,6 +17,8 @@ namespace DiscordBot.Models.Configuration
 
         public ReactionSettings CustomReactionSettings { get; set; } = new ReactionSettings();
 
+        public bool EnableEvalCommand { get; set; } = false;
+
         public class ReactionSettings
         {
             public ulong LeaveCommandReactionId { get; set; }
