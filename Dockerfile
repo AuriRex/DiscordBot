@@ -3,6 +3,7 @@ WORKDIR /GitInfo
 
 COPY . ./
 
+# Get last git commit message and if there's any uncommited changes and make those values available to the build environment
 RUN apt-get update
 RUN apt-get install -y git
 
@@ -15,6 +16,7 @@ RUN pwsh -Command "\$command = git diff --stat; if([string]::IsNullOrWhitespace(
 FROM mcr.microsoft.com/dotnet/sdk:3.1 AS build-env
 WORKDIR /BuildEnv
 
+# nuget source for DShapPlus nightlies
 RUN dotnet nuget add source https://nuget.emzi0767.com/api/v3/index.json
 
 COPY . ./
@@ -28,7 +30,6 @@ FROM mcr.microsoft.com/dotnet/runtime:3.1 AS final
 WORKDIR /DiscordBot
 
 ENV COMPlus_EnableDiagnostics=0
-
 
 COPY --from=build-env /BuildEnv/out/ ./
 COPY --from=build-env /BuildEnv/wait-for-it.sh ./wait-for-it.sh
