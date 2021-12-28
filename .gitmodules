@@ -1,0 +1,3 @@
+[submodule "Communicator"]
+	path = Communicator
+	url = https://github.com/AuriRex/Communicator
