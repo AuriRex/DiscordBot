@@ -82,6 +82,8 @@ namespace DiscordBot.Commands
         [RequireOwner]
         public async Task EvalCommand(CommandContext ctx, [RemainingText] string code)
         {
+            if (!BotConfig.EnableEvalCommand) return;
+
             await ctx.TriggerTypingAsync();
 
             if(code.StartsWith("```cs"))

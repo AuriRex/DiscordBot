@@ -13,45 +13,35 @@
   <PropertyGroup>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
-
-  <!-- https://gist.github.com/Serivy/74fff320c93176e6ca7f76e1cc139367 -->
-  <UsingTask TaskName="GetFirstItem" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
-    <ParameterGroup>
-      <Items ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
-      <FirstItem ParameterType="System.String" Output="true" Required="false" />
-    </ParameterGroup>
-    <Task>
-      <Using Namespace="System.Linq" />
-      <Code Type="Fragment" Language="cs">FirstItem = Items.First().ItemSpec;</Code>
-    </Task>
-  </UsingTask>
   
   <PropertyGroup Label="Custom">
     <GitMessageFile>$(ProjectDir)tmp\LastCommitMessage.txt</GitMessageFile>
     <GitDirtyFile>$(ProjectDir)tmp\IsDirty.txt</GitDirtyFile>
   </PropertyGroup>
 
-  <Target Name="WriteSpecialStuffToFile" BeforeTargets="ReadFromFile">
-    <Exec Command="git log -1 --pretty=%25%25B &gt; &quot;$(GitMessageFile)&quot;" />
-    <!-- what the heck did I create? 😩 -->
-    <Exec Command="powershell -Command &quot; %24command = git diff --stat; if(%5Bstring%5D%3A%3AIsNullOrWhitespace(%24command)) { %24result = 'false'; } else { %24result = 'true'; } %5Bstring%5D%3A%3AConcat(%24result) %7C Out-File '$(GitDirtyFile)' &quot;" />
-  </Target>
-
   <Target Name="ReadFromFile" BeforeTargets="Date">
     <ReadLinesFromFile File="$(GitMessageFile)">
       <Output TaskParameter="Lines" ItemName="GitMessage" />
     </ReadLinesFromFile>
-    <GetFirstItem Items="@(GitMessage)">
-      <Output TaskParameter="FirstItem" PropertyName="FirstItemProperty" />
-    </GetFirstItem>
+
+    <ItemGroup>
+      <Reversed Include="@(GitMessage->Reverse())" />
+    </ItemGroup>
+    <PropertyGroup>
+      <FirstItemProperty>%(Reversed.Identity)</FirstItemProperty>
+    </PropertyGroup>
     <Exec Command="echo &quot;$(FirstItemProperty)&quot;" />
     
     <ReadLinesFromFile File="$(GitDirtyFile)">
       <Output TaskParameter="Lines" ItemName="GitIsDirtyLines" />
     </ReadLinesFromFile>
-    <GetFirstItem Items="@(GitIsDirtyLines)">
-      <Output TaskParameter="FirstItem" PropertyName="GitIsDirty" />
-    </GetFirstItem>
+
+    <ItemGroup>
+      <Reversed Include="@(GitIsDirtyLines->Reverse())" />
+    </ItemGroup>
+    <PropertyGroup>
+      <GitIsDirty>%(Reversed.Identity)</GitIsDirty>
+    </PropertyGroup>
   </Target>
 
   <!-- https://stackoverflow.com/a/50905092 -->
@@ -77,15 +67,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Communicator\Communicator\Communicator.csproj" />
+    <ProjectReference Include="..\Communicator\Communicator\Communicator.csproj" />
     <ProjectReference Include="..\DiscordBotPluginBase\DiscordBotPluginBase.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Properties\" />
   </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="docker build -t discord-bot-image -f Dockerfile ." />
-  </Target>
 </Project>

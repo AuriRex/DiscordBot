@@ -5,28 +5,42 @@ VisualStudioVersion = 16.0.31112.23
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiscordBot", "DiscordBot\DiscordBot.csproj", "{201B2AD9-3435-423C-8136-892C627B1F2F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Communicator", "..\Communicator\Communicator\Communicator.csproj", "{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DiscordBotPluginBase", "DiscordBotPluginBase\DiscordBotPluginBase.csproj", "{4645AE86-2359-4167-8534-247E027C6A43}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscordBotPluginBase", "DiscordBotPluginBase\DiscordBotPluginBase.csproj", "{4645AE86-2359-4167-8534-247E027C6A43}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Communicator", "Communicator\Communicator\Communicator.csproj", "{B1FA697A-FDE0-4EE2-8530-824796924B2D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
+		tModLoader|Any CPU = tModLoader|Any CPU
+		TShock|Any CPU = TShock|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{201B2AD9-3435-423C-8136-892C627B1F2F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{201B2AD9-3435-423C-8136-892C627B1F2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{201B2AD9-3435-423C-8136-892C627B1F2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{201B2AD9-3435-423C-8136-892C627B1F2F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F9BBCB37-7B47-41DF-967C-F12BA0F4FEFF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{201B2AD9-3435-423C-8136-892C627B1F2F}.tModLoader|Any CPU.ActiveCfg = Release|Any CPU
+		{201B2AD9-3435-423C-8136-892C627B1F2F}.tModLoader|Any CPU.Build.0 = Release|Any CPU
+		{201B2AD9-3435-423C-8136-892C627B1F2F}.TShock|Any CPU.ActiveCfg = Release|Any CPU
+		{201B2AD9-3435-423C-8136-892C627B1F2F}.TShock|Any CPU.Build.0 = Release|Any CPU
 		{4645AE86-2359-4167-8534-247E027C6A43}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4645AE86-2359-4167-8534-247E027C6A43}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4645AE86-2359-4167-8534-247E027C6A43}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4645AE86-2359-4167-8534-247E027C6A43}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.tModLoader|Any CPU.ActiveCfg = tModLoader|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.tModLoader|Any CPU.Build.0 = tModLoader|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.TShock|Any CPU.ActiveCfg = TShock|Any CPU
+		{4645AE86-2359-4167-8534-247E027C6A43}.TShock|Any CPU.Build.0 = TShock|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.tModLoader|Any CPU.ActiveCfg = tModLoader|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.tModLoader|Any CPU.Build.0 = tModLoader|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.TShock|Any CPU.ActiveCfg = TShock|Any CPU
+		{B1FA697A-FDE0-4EE2-8530-824796924B2D}.TShock|Any CPU.Build.0 = TShock|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

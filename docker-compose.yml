@@ -14,7 +14,7 @@ services:
     # networks:
     #   - test
   DiscordBot:
-    image: "discord-bot-image"
+    image: "aurirex/polarisdiscordbot"
     depends_on:
       - "LavaLink"
     ports:
