@@ -25,7 +25,7 @@
     </ReadLinesFromFile>
 
     <ItemGroup>
-      <Reversed Include="@(GitMessage->Reverse())" />
+      <Reversed Include="@(GitMessage-&gt;Reverse())" />
     </ItemGroup>
     <PropertyGroup>
       <FirstItemProperty>%(Reversed.Identity)</FirstItemProperty>
@@ -37,7 +37,7 @@
     </ReadLinesFromFile>
 
     <ItemGroup>
-      <Reversed Include="@(GitIsDirtyLines->Reverse())" />
+      <Reversed Include="@(GitIsDirtyLines-&gt;Reverse())" />
     </ItemGroup>
     <PropertyGroup>
       <GitIsDirty>%(Reversed.Identity)</GitIsDirty>
@@ -64,6 +64,7 @@
     <PackageReference Include="Serilog" Version="2.11.0-dev-01371" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="3.1.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.1-dev-00947" />
   </ItemGroup>
 
   <ItemGroup>

@@ -41,7 +41,11 @@ namespace DiscordBot
     class Program
     {
         public const string DEFAULT_CONFIG_LOCATION = "./data/config.json";
+        public const string DEFAULT_LOG_FILE_LOCATION = "./data/logs/";
+        private static readonly string logTemplate = "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level}] {Message:lj}{NewLine}{Exception}";
+
         public static string ConfigLocation { get; set; } = DEFAULT_CONFIG_LOCATION;
+        public static string LogFileLocation { get; set; } = DEFAULT_LOG_FILE_LOCATION;
 
         internal static DiscordClient DiscordClientInstance { get; private set; }
         private static Config ConfigInstance { get; set; }
@@ -69,8 +73,14 @@ namespace DiscordBot
 
             PluginManager = new PluginManager();
 
+            if(!Directory.Exists(LogFileLocation))
+            {
+                Directory.CreateDirectory(LogFileLocation);
+            }
+
             Log.Logger = new LoggerConfiguration()
-                .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.Console(outputTemplate: logTemplate)
+                .WriteTo.File(Path.Combine(LogFileLocation, "log.txt"), rollingInterval: RollingInterval.Day, outputTemplate: logTemplate)
                 .CreateLogger();
 
             Action<object, EventArgs> applicationExitAction = (sender, eventArgs) => {
@@ -83,7 +93,7 @@ namespace DiscordBot
 #if DEBUG
                 Task.Delay(1000).Wait();
 #endif
-
+                ((Serilog.Core.Logger) Log.Logger).Dispose();
                 process.Kill();
             };
 
