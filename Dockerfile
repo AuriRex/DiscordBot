@@ -7,8 +7,8 @@ COPY . ./
 RUN apt-get update
 RUN apt-get install -y git
 
-RUN git log -1 --pretty=%B > ./DiscordBot/tmp/LastCommitMessage.txt
 RUN pwsh -Command "\$command = git diff --stat; if([string]::IsNullOrWhitespace(\$command)) { \$result = 'false'; } else { \$result = 'true'; } [string]::Concat(\$result) | Out-File './DiscordBot/tmp/IsDirty.txt'"
+RUN git log -1 --pretty=%B > ./DiscordBot/tmp/LastCommitMessage.txt
 
 # RUN echo 'test' > ./DiscordBot/tmp/LastCommitMessage.txt
 # RUN echo 'false' > ./DiscordBot/tmp/IsDirty.txt
