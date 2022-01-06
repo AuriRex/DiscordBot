@@ -54,6 +54,8 @@ namespace DiscordBot.Managers
             CommunicatorServer.ErrorLogAction = (s) => { Log.Logger.Error($"[CommunicatorServer] {s}"); };
             CommunicatorServer.ClientConnectedEvent += CommunicatorServer_ClientConnectedEvent;
             CommunicatorServer.AuthentificationService = _authService;
+
+            CommunicatorServer.StartServer();
         }
 
         internal void OnApplicationClosing()
