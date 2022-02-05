@@ -202,10 +202,19 @@ namespace DiscordBot.Commands
         }
 
         [Command("leave")]
+        [Aliases("fuck-off")]
         [Description("Makes the bot leave the current voice channel")]
         public async Task Leave(CommandContext ctx)
         {
             await (await LavaLinkCommandsCore.LeaveCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member)).RespondWithReactionOrRestTo(ctx);
+        }
+
+        [Command("fuck")]
+        [Hidden]
+        public async Task FWordCommandThingSmile(CommandContext ctx, [RemainingText] string text)
+        {
+            if(text.StartsWith("off"))
+                await Leave(ctx);
         }
     }
 }
