@@ -88,13 +88,19 @@ namespace DiscordBot.Commands
                 char current = gif[i];
                 char next = gif[i + 1];
 
-                if (next == ' ') continue;
-
+                if (next == ' ')
+                {
+                    ret.Append(current);
+                    continue;
+                }
+                
                 switch (prev)
                 {
                     case ' ': break;
                     case '.': break;
-                    default: continue;
+                    default:
+                        ret.Append(current);
+                        continue;
                 }
 
                 if(current == 'g')
