@@ -421,11 +421,6 @@ namespace DiscordBot.Commands.Core
                 }
             }
 
-            if (!IsMemberInMusicChannel(conn, invoker))
-            {
-                return NotInSameChannel;
-            }
-
             if (IsTrackLoaded(conn))
             {
                 musicPlayerData.Queue.SaveLastDequeuedSongTime(conn.CurrentState.PlaybackPosition);
@@ -889,6 +884,13 @@ namespace DiscordBot.Commands.Core
         public static bool IsBotConnected(DiscordClient client, DiscordGuild guild)
         {
             return TryGetGuildConnection(client, guild, out var _, out var _);
+        }
+
+        public static async Task ForceDisconnect(DiscordClient client, DiscordGuild guild)
+        {
+            TryGetGuildConnection(client, guild, out var conn);
+
+            await conn?.DisconnectAsync();
         }
         #endregion util
     }
