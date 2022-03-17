@@ -78,6 +78,43 @@ namespace DiscordBot.Commands
             await ctx.Message.CreateReactionAsync(emoji);
         }
 
+        [Command("jifify")]
+        public async Task Jifify(CommandContext ctx, [RemainingText] string gif)
+        {
+            StringBuilder ret = new StringBuilder();
+            for(int i = 0; i < gif.Length-1; i++)
+            {
+                char prev = i > 0 ? gif[i - 1] : ' ';
+                char current = gif[i];
+                char next = gif[i + 1];
+
+                if (next == ' ') continue;
+
+                switch (prev)
+                {
+                    case ' ': break;
+                    case '.': break;
+                    default: continue;
+                }
+
+                if(current == 'g')
+                {
+                    ret.Append('j');
+                    continue;
+                }
+
+                if (current == 'G')
+                {
+                    ret.Append('J');
+                    continue;
+                }
+
+                ret.Append(current);
+            }
+
+            await ctx.RespondAsync(ret.ToString());
+        }
+
         [Command("eval")]
         [RequireOwner]
         public async Task EvalCommand(CommandContext ctx, [RemainingText] string code)
