@@ -17,7 +17,7 @@ FROM mcr.microsoft.com/dotnet/sdk:3.1 AS build-env
 WORKDIR /BuildEnv
 
 # nuget source for DShapPlus nightlies
-RUN dotnet nuget add source https://nuget.emzi0767.com/api/v3/index.json
+# RUN dotnet nuget add source https://nuget.emzi0767.com/api/v3/index.json
 
 COPY . ./
 COPY --from=git-info-env /GitInfo/DiscordBot/tmp/LastCommitMessage.txt /BuildEnv/DiscordBot/tmp/LastCommitMessage.txt
