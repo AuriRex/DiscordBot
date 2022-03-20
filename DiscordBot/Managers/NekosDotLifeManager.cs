@@ -55,11 +55,7 @@ namespace DiscordBot.Managers
 
             var response = await _nekosClient.GetAsync();
 
-            if(response.Status.IsSuccess)
-            {
-                return response.Data.Response.Url;
-            }
-            return null;
+            return response?.Data?.Response?.Url;
         }
 
         public string[] GetAllEnpoints<ET>()
