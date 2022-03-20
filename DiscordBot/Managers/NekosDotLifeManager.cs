@@ -1,7 +1,8 @@
 ﻿using DiscordBot.Attributes;
-using Nekos.Net;
-using Nekos.Net.Endpoints;
+using Nekos.Net.V3;
+using Nekos.Net.V3.Endpoints;
 using Serilog;
+using Serilog.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 
@@ -10,109 +11,60 @@ namespace DiscordBot.Managers
     [AutoDI.Singleton]
     public class NekosDotLifeManager
     {
-        public SfwEndpoint GlobalV2SfwEndpointFallback { get; set; } = SfwEndpoint.Poke;
-        public NsfwEndpoint GlobalV2NsfwEndpointFallback { get; set; } = NsfwEndpoint.Classic;
+        private NekosV3Client _nekosClient;
 
         public NekosDotLifeManager()
         {
-            
+            _nekosClient = new NekosV3Client(new SerilogLoggerProvider(Log.Logger).CreateLogger("Nekos"));
         }
 
-        /*public async Task<string> GetV2SfwAsync(string stringEndpoint, string fallback = null)
+        public bool TryParseEndpoint<ET>(string stringEndpoint, out ET endpoint)
         {
-            SfwEndpoint endpoint;
-            try
-            {
-                endpoint = (SfwEndpoint) Enum.Parse(typeof(SfwEndpoint), stringEndpoint);
-            }
-            catch(Exception)
-            {
-                if(string.IsNullOrEmpty(fallback))
-                {
-                    // Use Global Fallback;
-                    endpoint = GlobalV2SfwEndpointFallback;
-                }
-                else
-                {
-                    try
-                    {
-                        endpoint = (SfwEndpoint) Enum.Parse(typeof(SfwEndpoint), fallback);
-                    }
-                    catch (Exception)
-                    {
-                        // Guild fallback failed, using Global instead
-                        endpoint = GlobalV2SfwEndpointFallback;
-                        Log.Logger.Warning($"Guild provided fallback '{fallback}' doesn't exist, using global fallback '{endpoint}' instead.");
-                    }
-                }
-            }
-
-            return await GetV2SfwAsync(endpoint);
-        }*/
-
-        public async Task<string> GetAsync<ET>(string stringEndpoint, string fallback = null) where ET : Enum
-        {
-            ET endpoint = default(ET);
-            bool useGlobalFallback = false;
+            stringEndpoint = stringEndpoint.Replace(' ', '_');
             try
             {
                 endpoint = (ET) Enum.Parse(typeof(ET), stringEndpoint, true);
+                return true;
             }
             catch (Exception)
             {
-                Log.Logger.Information("Initial endpoint parse failed, falling back...");
-                if (string.IsNullOrEmpty(fallback))
-                {
-                    // Use Global Fallback;
-                    useGlobalFallback = true;
-                }
-                else
-                {
-                    try
-                    {
-                        endpoint = (ET) Enum.Parse(typeof(ET), fallback, true);
-                    }
-                    catch (Exception)
-                    {
-                        // provided fallback failed, using Global instead
-                        useGlobalFallback = true;
-                        Log.Logger.Warning($"Provided fallback '{fallback}' doesn't exist, using global fallback instead.");
-                    }
-                }
+                endpoint = default(ET);
+                return false;
             }
-
-            Log.Logger.Information($"[Nekos.Life] Endpoint:{endpoint}, useGlobalFallback:{useGlobalFallback}");
-
-            return await GetAsync(endpoint, useGlobalFallback);
         }
 
-        private async Task<string> GetAsync<ET>(ET genericEndpoint, bool useGlobal) where ET : Enum
+        public async Task<string> GetImageUrlAsync<T>(T value) where T : Enum
         {
-            switch(genericEndpoint)
+            switch(value)
             {
-                case SfwEndpoint endpoint:
-                    return await GetV2SfwAsync(useGlobal ? GlobalV2SfwEndpointFallback : endpoint);
-                case NsfwEndpoint endpoint:
-                    return await GetV2NsfwAsync(useGlobal ? GlobalV2NsfwEndpointFallback : endpoint);
+                case NsfwGifEndpoint ng:
+                    _nekosClient.WithNsfwGifEndpoint(ng);
+                    break;
+                case NsfwImgEndpoint ni:
+                    _nekosClient.WithNsfwImgEndpoint(ni);
+                    break;
+                case SfwGifEndpoint sg:
+                    _nekosClient.WithSfwGifEndpoint(sg);
+                    break;
+                case SfwImgEndpoint si:
+                    _nekosClient.WithSfwImgEndpoint(si);
+                    break;
                 default:
-                    throw new ArgumentException($"Invalid type or endpoint '{typeof(ET).Name}', '{genericEndpoint}'.");
+                    throw new ArgumentException($"Invalid type provided: \"{typeof(T).FullName}\".");
             }
+
+            var response = await _nekosClient.GetAsync();
+
+            if(response.Status.IsSuccess)
+            {
+                return response.Data.Response.Url;
+            }
+            return null;
         }
 
         public string[] GetAllEnpoints<ET>()
         {
             return Enum.GetNames(typeof(ET));
         }
-
-        private async Task<string> GetV2SfwAsync(SfwEndpoint endpoint)
-        {
-            return (await NekosClient.GetSfwAsync(endpoint)).FileUrl;
-        }
-
-        private async Task<string> GetV2NsfwAsync(NsfwEndpoint endpoint)
-        {
-            return (await NekosClient.GetNsfwAsync(endpoint)).FileUrl;
-        }
-
     }
 }

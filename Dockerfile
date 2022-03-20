@@ -13,7 +13,7 @@ RUN git log -1 --pretty=%B > ./DiscordBot/tmp/LastCommitMessage.txt
 # RUN echo 'test' > ./DiscordBot/tmp/LastCommitMessage.txt
 # RUN echo 'false' > ./DiscordBot/tmp/IsDirty.txt
 
-FROM mcr.microsoft.com/dotnet/sdk:3.1 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build-env
 WORKDIR /BuildEnv
 
 # nuget source for DShapPlus nightlies
@@ -24,9 +24,9 @@ COPY --from=git-info-env /GitInfo/DiscordBot/tmp/LastCommitMessage.txt /BuildEnv
 COPY --from=git-info-env /GitInfo/DiscordBot/tmp/IsDirty.txt /BuildEnv/DiscordBot/tmp/IsDirty.txt
 RUN cd ./DiscordBot/
 RUN dotnet restore
-RUN dotnet publish -c Release --framework netcoreapp3.1 -o ./out
+RUN dotnet publish -c Release --framework netcoreapp6.0 -o ./out
 
-FROM mcr.microsoft.com/dotnet/runtime:3.1 AS final
+FROM mcr.microsoft.com/dotnet/runtime:6.0 AS final
 WORKDIR /DiscordBot
 
 ENV COMPlus_EnableDiagnostics=0
