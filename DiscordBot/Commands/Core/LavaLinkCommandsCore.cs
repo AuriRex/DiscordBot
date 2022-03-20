@@ -13,6 +13,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using static DiscordBot.Events.CommandResponse;
+using static DiscordBot.Managers.MusicQueueManager;
 
 namespace DiscordBot.Commands.Core
 {
@@ -52,6 +53,74 @@ namespace DiscordBot.Commands.Core
         public MusicQueueManager MusicQueueManager { private get; set; }
         public EqualizerManager EqualizerManager { private get; set; }
 
+
+        public bool TryReloadTrackIfNecessary(LavalinkNodeConnection node, TrackInfo trackInfo, ref LavalinkTrack track, out CommandResponse errorResponse)
+        {
+            if (track == null && trackInfo?.Uri != null)
+            {
+                Log.Debug($"Reloading track from Uri {trackInfo.Uri}");
+                if (!TrySearchOrLoadTrack(trackInfo.Uri, node, out var finalLoadResult, out errorResponse))
+                {
+                    Log.Debug($"Reloading track from Uri {trackInfo.Uri} FAILED");
+                    return false;
+                }
+                track = finalLoadResult.Tracks.FirstOrDefault();
+            }
+            errorResponse = null;
+            return true;
+        }
+
+        public static bool TrySearchOrLoadTrack(string searchOrUrl, LavalinkNodeConnection node, out LavalinkLoadResult finalLoadResult, out CommandResponse commandResponse)
+        {
+            Log.Debug($"Loading track from search or url \"{searchOrUrl}\"");
+            LavalinkLoadResult loadResult = null;
+            if (searchOrUrl.StartsWith("https://") || searchOrUrl.StartsWith("http://"))
+            {
+                var uri = new Uri(searchOrUrl);
+                loadResult = node.Rest.GetTracksAsync(uri).Result;
+            }
+            else if (searchOrUrl.Contains("soundcloud"))
+            {
+                searchOrUrl = searchOrUrl.Replace("soundcloud", string.Empty);
+                loadResult = node.Rest.GetTracksAsync(searchOrUrl, LavalinkSearchType.SoundCloud).Result;
+            }
+
+            if (loadResult != null && loadResult.LoadResultType != LavalinkLoadResultType.LoadFailed && loadResult.LoadResultType != LavalinkLoadResultType.NoMatches)
+            {
+                finalLoadResult = loadResult;
+            }
+            else
+            {
+                // Search YouTube instead
+                finalLoadResult = node.Rest.GetTracksAsync(searchOrUrl).Result;
+            }
+
+            if (finalLoadResult.LoadResultType == LavalinkLoadResultType.LoadFailed
+                || finalLoadResult.LoadResultType == LavalinkLoadResultType.NoMatches
+                || finalLoadResult.Tracks.Count() == 0)
+            {
+                string error = finalLoadResult.Exception.Message;
+
+                if (string.IsNullOrWhiteSpace(error))
+                {
+                    error = loadResult.Exception.Message;
+                    if (string.IsNullOrWhiteSpace(error))
+                    {
+                        error = "Track loading failed";
+                    }
+                }
+
+                finalLoadResult = null;
+                commandResponse = new CommandResponse
+                {
+                    Embed = Utilities.CreateErrorEmbed($"Track search failed for {searchOrUrl}. ({error})")
+                };
+                return false;
+            }
+            commandResponse = null;
+            return true;
+        }
+
         public async Task<CommandResponse> PlayCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker, string searchOrUrl, bool autoConnect = true)
         {
             if (string.IsNullOrWhiteSpace(searchOrUrl)) return CommandResponse.Empty;
@@ -73,48 +142,9 @@ namespace DiscordBot.Commands.Core
                 }
             }
 
-            LavalinkLoadResult loadResult = null;
-            if (searchOrUrl.StartsWith("https://") || searchOrUrl.StartsWith("http://"))
+            if(!TrySearchOrLoadTrack(searchOrUrl, node, out var finalLoadResult, out var errorResponse))
             {
-                var uri = new Uri(searchOrUrl);
-                loadResult = await node.Rest.GetTracksAsync(uri);
-            }
-            else if (searchOrUrl.Contains("soundcloud"))
-            {
-                searchOrUrl = searchOrUrl.Replace("soundcloud", string.Empty);
-                loadResult = await node.Rest.GetTracksAsync(searchOrUrl, LavalinkSearchType.SoundCloud);
-            }
-
-            LavalinkLoadResult finalLoadResult;
-            if(loadResult != null && loadResult.LoadResultType != LavalinkLoadResultType.LoadFailed && loadResult.LoadResultType != LavalinkLoadResultType.NoMatches)
-            {
-                finalLoadResult = loadResult;
-            }
-            else
-            {
-                // Search YouTube instead
-                finalLoadResult = await node.Rest.GetTracksAsync(searchOrUrl);
-            }
-
-            if (finalLoadResult.LoadResultType == LavalinkLoadResultType.LoadFailed
-                || finalLoadResult.LoadResultType == LavalinkLoadResultType.NoMatches
-                || finalLoadResult.Tracks.Count() == 0)
-            {
-                string error = finalLoadResult.Exception.Message;
-
-                if(string.IsNullOrWhiteSpace(error))
-                {
-                    error = loadResult.Exception.Message;
-                    if (string.IsNullOrWhiteSpace(error))
-                    {
-                        error = "Track loading failed";
-                    }
-                }
-
-                return new CommandResponse
-                {
-                    Embed = Utilities.CreateErrorEmbed($"Track search failed for {searchOrUrl}. ({error})")
-                };
+                return errorResponse;
             }
 
             var queue = musicPlayerData.Queue;
@@ -133,7 +163,13 @@ namespace DiscordBot.Commands.Core
 
                 if (!IsTrackLoaded(conn))
                 {
-                    track = queue.DequeueTrack();
+                    var trackInfo = queue.DequeueTrack();
+                    track = trackInfo.Track;
+
+                    if(!TryReloadTrackIfNecessary(node, trackInfo, ref track, out errorResponse))
+                    {
+                        return errorResponse;
+                    }
 
                     await conn.PlayAsync(track);
                     extra = $"Now playing `{track.Title}`!\n";
@@ -164,7 +200,15 @@ namespace DiscordBot.Commands.Core
 
             queue.EnqueueTrack(track);
 
-            await conn.PlayAsync(queue.DequeueTrack());
+            var trackInfoFromQueue = queue.DequeueTrack();
+            track = trackInfoFromQueue.Track;
+
+            if (!TryReloadTrackIfNecessary(node, trackInfoFromQueue, ref track, out errorResponse))
+            {
+                return errorResponse;
+            }
+
+            await conn.PlayAsync(track);
 
             return new CommandResponse
             {
@@ -197,7 +241,7 @@ namespace DiscordBot.Commands.Core
 
             queue.EnqueueTrack(lastTrack);
 
-            if (!TryGetGuildConnection(client, guild, out var conn))
+            if (!TryGetGuildConnection(client, guild, out var conn, out var node))
             {
                 var wrapper = new CommandResponseWrapper();
                 conn = await ConnectToMemberVoice(client, invoker, true, wrapper);
@@ -219,23 +263,30 @@ namespace DiscordBot.Commands.Core
 
                 musicPlayerData.LastUsedPlayControlChannel = invokerMessageChannel;
 
-                await conn.PlayAsync(nextTrack);
+                LavalinkTrack track = nextTrack.Track;
+
+                if(!TryReloadTrackIfNecessary(node, nextTrack, ref track, out var errorResponse))
+                {
+                    return errorResponse;
+                }
+
+                await conn.PlayAsync(track);
 
                 return new CommandResponse
                 {
-                    Embed = Utilities.CreateInfoEmbed($"Replaying last song: `{nextTrack.Title}`.", nextTrack.Uri.ToString())
+                    Embed = Utilities.CreateInfoEmbed($"Replaying last song: `{nextTrack.Track?.Title}`.", nextTrack.Uri.ToString())
                 };
             }
 
             return new CommandResponse
             {
-                Embed = Utilities.CreateInfoEmbed($"Added last played track `{lastTrack?.Title}` to the queue.", lastTrack.Uri.ToString())
+                Embed = Utilities.CreateInfoEmbed($"Added last played track `{lastTrack?.Track?.Title}` to the queue.", lastTrack.Uri.ToString())
             };
         }
 
         public async Task<CommandResponse> ForceSkipCommand(DiscordClient client, DiscordGuild guild, DiscordChannel invokerMessageChannel, DiscordMember invoker)
         {
-            TryGetGuildConnection(client, guild, out var conn);
+            TryGetGuildConnection(client, guild, out var conn, out var node);
 
             var musicPlayerData = MusicQueueManager.GetOrCreateMusicPlayerData(guild);
             var queue = musicPlayerData.Queue;
@@ -260,13 +311,21 @@ namespace DiscordBot.Commands.Core
             }
 
             var title = conn.CurrentState.CurrentTrack.Title;
-
+            var link = conn.CurrentState.CurrentTrack.Uri.ToString();
 
             if (!queue.IsEmpty)
             {
-                var track = queue.DequeueTrack();
-                if(track != null)
-                    await conn.PlayAsync(track);
+                var trackInfo = queue.DequeueTrack();
+                var track = trackInfo.Track;
+                
+                if (!TryReloadTrackIfNecessary(node, trackInfo, ref track, out var errorResponse))
+                {
+                    return errorResponse;
+                }
+
+                Log.Logger.Information($"Now playing  \"{track?.Title}\".");
+
+                await conn.PlayAsync(track);
             }
             else
             {
@@ -275,7 +334,7 @@ namespace DiscordBot.Commands.Core
 
             return new CommandResponse
             {
-                Embed = Utilities.CreateTitleEmbed($"⏩ Skipped: `{title}`", DiscordColor.IndianRed, conn.CurrentState.CurrentTrack.Uri.ToString())
+                Embed = Utilities.CreateTitleEmbed($"⏩ Skipped: `{title}`", DiscordColor.IndianRed, link)
             };
         }
 
@@ -380,8 +439,8 @@ namespace DiscordBot.Commands.Core
 
             if (!IsTrackLoaded(conn))
             {
-                var track = queue.LastDequeuedTrack;
-                if (track != null && queue.LastDequeuedSongTime != null && queue.LastDequeuedSongTime.TotalSeconds > 2)
+                var track = queue.LastDequeuedTrack?.Track;
+                if (track != null && queue.LastDequeuedSongTime.TotalSeconds > 2)
                 {
                     Log.Information($"Starting song from position: {Utilities.SpecialFormatTimeSpan(queue.LastDequeuedSongTime)}");
                     await conn.PlayPartialAsync(track, queue.LastDequeuedSongTime, track.Length);
@@ -684,12 +743,12 @@ namespace DiscordBot.Commands.Core
                 };
             }
 
-            foreach (LavalinkTrack track in nextSongs)
+            foreach (var trackInfo in nextSongs)
             {
-                string newString = $"{track.Title} | {(queue.IsRandomMode ? "??:??" : Utilities.SpecialFormatTimeSpan(currentTimeUntil))}";
+                string newString = $"{trackInfo?.Track?.Title} | {(queue.IsRandomMode ? "??:??" : Utilities.SpecialFormatTimeSpan(currentTimeUntil))}";
                 totalCharacterCount += newString.Length;
                 if (totalCharacterCount > 4000) break;
-                currentTimeUntil += track.Length;
+                currentTimeUntil += trackInfo?.Track?.Length ?? TimeSpan.Zero;
                 listOfStrings.Add(newString);
             }
 

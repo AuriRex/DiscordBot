@@ -1,4 +1,5 @@
 ﻿using DiscordBot.Attributes;
+using DiscordBot.Commands.Core;
 using DiscordBot.Extensions;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
@@ -10,30 +11,22 @@ using System.Threading.Tasks;
 
 namespace DiscordBot.Managers
 {
-    [AutoDI.Singleton]
-    public class MusicQueueManager
+    [AutoDI.SingletonCreateAndInstall]
+    public class MusicQueueManager : BaseGuildManager<MusicQueueManager.MusicPlayerDataForGuild>
     {
+        public LavaLinkCommandsCore LavaLinkCommandsCore { private get; set; }
 
-        private Dictionary<DiscordGuild, MusicPlayerDataForGuild> _musicPlayerDataForGuild = new Dictionary<DiscordGuild, MusicPlayerDataForGuild>();
+        //private Dictionary<DiscordGuild, MusicPlayerDataForGuild> _musicPlayerDataForGuild = new Dictionary<DiscordGuild, MusicPlayerDataForGuild>();
 
         public QueueForGuild GetOrCreateQueueForGuild(DiscordGuild guild)
         {
-            var musicPlayerData = GetOrCreateMusicPlayerData(guild);
+            var musicPlayerData = GetOrCreateGSData(guild);
             return musicPlayerData?.Queue;
         }
 
         public MusicPlayerDataForGuild GetOrCreateMusicPlayerData(DiscordGuild guild)
         {
-            if (guild == null) return null;
-
-            if (_musicPlayerDataForGuild.TryGetValue(guild, out MusicPlayerDataForGuild mpd))
-            {
-                return mpd;
-            }
-
-            var newMusicPlayerData = new MusicPlayerDataForGuild(guild);
-            _musicPlayerDataForGuild.Add(guild, newMusicPlayerData);
-            return newMusicPlayerData;
+            return GetOrCreateGSData(guild);
         }
 
         /// <summary>
@@ -79,6 +72,8 @@ namespace DiscordBot.Managers
 
         public async Task OnPlaybackFinished(LavalinkGuildConnection sender, TrackFinishEventArgs e)
         {
+            if (e.Reason == TrackEndReason.Replaced) return;
+
             if (sender.IsConnected)
             {
                 var queue = GetOrCreateQueueForGuild(sender.Guild);
@@ -87,22 +82,35 @@ namespace DiscordBot.Managers
                 if(e.Reason == TrackEndReason.LoadFailed)
                 {
                     Log.Warning($"Playback of last track errored, retrying! ({queue.CurrentErrorRetryCount+1}/{QueueForGuild.MaxErrorRetry})");
-                    nextTrack = queue.GetLastTrackLimited();
+                    nextTrack = queue.GetLastTrackLimited()?.Track;
                     if (nextTrack == null)
                     {
-                        Log.Warning($"Retring playback of Track '{queue.LastDequeuedTrack?.Title}' has failed too many times, skipping!");
+                        Log.Warning($"Retring playback of Track '{queue.LastDequeuedTrack?.Track?.Title}' has failed too many times, skipping!");
                     }
                 }
                 
                 if(nextTrack == null)
                 {
-                    nextTrack = queue.DequeueTrack();
+                    var trackInfo = queue.DequeueTrack();
+                    nextTrack = trackInfo?.Track;
+
+                    if(nextTrack == null)
+                    {
+                        if (LavaLinkCommandsCore.TryGetGuildConnection(Program.DiscordClientInstance, sender.Guild, out var conn, out var node))
+                        {
+                            LavaLinkCommandsCore.TryReloadTrackIfNecessary(node, trackInfo, ref nextTrack, out _);
+                        }
+                    }
                 }
 
                 if (nextTrack != null)
                 {
                     Log.Information($"Playing '{nextTrack.Title}' in '{sender.Guild.Name}' / '{sender.Guild.Id}' from queue.");
                     await sender.PlayAsync(nextTrack);
+                }
+                else
+                {
+                    Log.Information($"Next Track from Queue is null, not playing anything.");
                 }
             }
 
@@ -111,7 +119,6 @@ namespace DiscordBot.Managers
 
         public class MusicPlayerDataForGuild
         {
-            public DiscordGuild Guild { get; private set; }
             private QueueForGuild _queue;
             public QueueForGuild Queue
             {
@@ -119,7 +126,7 @@ namespace DiscordBot.Managers
                 {
                     if(_queue == null)
                     {
-                        _queue = new QueueForGuild(Guild);
+                        _queue = new QueueForGuild();
                     }
                     return _queue;
                 }
@@ -128,10 +135,20 @@ namespace DiscordBot.Managers
             public DiscordChannel LastUsedPlayControlChannel { get; set; }
             public DiscordMessage LastErrorMessage { get; internal set; }
             public bool AllowNonPresentMemberControl { get; set; } = false;
+        }
 
-            public MusicPlayerDataForGuild(DiscordGuild guild)
+        public class TrackInfo
+        {
+            public LavalinkTrack Track { get; private set; }
+            public string Uri { get; private set; }
+            public DateTimeOffset QueueTime { get; private set; }
+            public Guid GUID { get; private set; } = new Guid();
+
+            public TrackInfo(LavalinkTrack track)
             {
-                Guild = guild;
+                Track = track;
+                Uri = track.Uri.ToString();
+                QueueTime = DateTimeOffset.Now;
             }
         }
 
@@ -140,10 +157,9 @@ namespace DiscordBot.Managers
             public static int MaxErrorRetry { get; set; } = 3;
             public int CurrentErrorRetryCount { get; private set; } = 0;
             public QueueMode Mode { get; set; }
-            public DiscordGuild Guild => _attachedGuild;
-            public LavalinkTrack LastDequeuedTrack { get; private set; }
+            public TrackInfo LastDequeuedTrack { get; private set; }
             public TimeSpan LastDequeuedSongTime { get; private set; }
-            public LavalinkTrack PeekTopTrack
+            public TrackInfo PeekTopTrack
             {
                 get
                 {
@@ -175,20 +191,18 @@ namespace DiscordBot.Managers
                 }
             }
 
-            private readonly DiscordGuild _attachedGuild;
-            private readonly Queue<LavalinkTrack> _tracks;
+            private readonly Queue<TrackInfo> _tracks;
 
-            public QueueForGuild(DiscordGuild guild)
+            public QueueForGuild()
             {
-                _attachedGuild = guild;
-                _tracks = new Queue<LavalinkTrack>();
+                _tracks = new Queue<TrackInfo>();
             }
 
             /// <summary>
             /// Get the last played Track again but returns null after calling this function <see cref="MaxErrorRetry"/> times without dequeueing a new track.
             /// </summary>
             /// <returns>The previously dequeued Track</returns>
-            public LavalinkTrack GetLastTrackLimited()
+            public TrackInfo GetLastTrackLimited()
             {
                 if(CurrentErrorRetryCount >= MaxErrorRetry-1)
                 {
@@ -207,9 +221,9 @@ namespace DiscordBot.Managers
             /// Returns null if the queue is empty!
             /// </summary>
             /// <returns>The next Track</returns>
-            public LavalinkTrack DequeueTrack()
+            public TrackInfo DequeueTrack()
             {
-                LavalinkTrack track;
+                TrackInfo track;
 
                 switch (Mode)
                 {
@@ -252,13 +266,13 @@ namespace DiscordBot.Managers
             /// </summary>
             public void Shuffle()
             {
-                List<LavalinkTrack> tracks = new List<LavalinkTrack>(_tracks);
+                List<TrackInfo> tracks = new List<TrackInfo>(_tracks);
 
                 tracks.Shuffle();
 
                 _tracks.Clear();
 
-                foreach(LavalinkTrack track in tracks)
+                foreach(TrackInfo track in tracks)
                 {
                     _tracks.Enqueue(track);
                 }
@@ -269,11 +283,11 @@ namespace DiscordBot.Managers
             /// </summary>
             /// <param name="x">Max number of Tracks</param>
             /// <returns></returns>
-            public List<LavalinkTrack> GetTopXTracks(int x)
+            public List<TrackInfo> GetTopXTracks(int x)
             {
-                var list = new List<LavalinkTrack>();
+                var list = new List<TrackInfo>();
                 if (x < 1) return list;
-                foreach(LavalinkTrack track in _tracks)
+                foreach(var track in _tracks)
                 {
                     list.Add(track);
                     x--;
@@ -289,9 +303,9 @@ namespace DiscordBot.Managers
             public TimeSpan GetTotalPlayTime()
             {
                 float totalPlayTime = 0f;
-                foreach (LavalinkTrack track in _tracks)
+                foreach (var trackInfo in _tracks)
                 {
-                    totalPlayTime += (float) track.Length.TotalSeconds;
+                    totalPlayTime += (float) (trackInfo.Track?.Length.TotalSeconds ?? 0f);
                 }
                 return TimeSpan.FromSeconds(totalPlayTime);
             }
@@ -303,9 +317,19 @@ namespace DiscordBot.Managers
             /// <returns>Play time of the queue until this song plays</returns>
             public TimeSpan EnqueueTrack(LavalinkTrack track)
             {
+                return EnqueueTrack(new TrackInfo(track));
+            }
+
+            /// <summary>
+            /// Re-Add a Track to the queue
+            /// </summary>
+            /// <param name="trackInfo"></param>
+            /// <returns>Play time of the queue until this song plays</returns>
+            public TimeSpan EnqueueTrack(TrackInfo trackInfo)
+            {
                 TimeSpan timeUntilPlay = GetTotalPlayTime();
 
-                _tracks.Enqueue(track);
+                _tracks.Enqueue(trackInfo);
 
                 return timeUntilPlay;
             }
@@ -320,7 +344,7 @@ namespace DiscordBot.Managers
                 TimeSpan timeUntilFirstTrack = GetTotalPlayTime();
                 foreach(LavalinkTrack track in tracks)
                 {
-                    _tracks.Enqueue(track);
+                    _tracks.Enqueue(new TrackInfo(track));
                 }
                 return timeUntilFirstTrack;
             }
