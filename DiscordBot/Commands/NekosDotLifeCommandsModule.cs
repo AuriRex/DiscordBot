@@ -158,6 +158,7 @@ namespace DiscordBot.Commands
         [Command("nsfw-gif")]
         [Aliases("ng")]
         [Description("Gif")]
+        [RequireNsfw]
         public async Task NekoDLNSFWGifCommand(CommandContext ctx, [Description("The endpoint to use")] string endpoint)
         {
             await ctx.TriggerTypingAsync();
@@ -171,6 +172,7 @@ namespace DiscordBot.Commands
         }
 
         [Command("nsfw-gif")]
+        [RequireNsfw]
         public async Task NekoDLNSFWGifCommand(CommandContext ctx)
         {
             var all = NekosManager.GetAllEnpoints<NsfwGifEndpoint>().Except(nsfwGifExceptions).ToArray();
