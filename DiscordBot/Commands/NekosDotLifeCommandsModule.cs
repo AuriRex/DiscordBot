@@ -28,18 +28,6 @@ namespace DiscordBot.Commands
         private static string[] gifExceptions = new string[] {
                 //SfwGifEndpoint.
         };
-
-        private static string[] nsfwImageExceptions = new string[] {
-                NsfwImgEndpoint.Wallpaper_Lewd.ToString(),
-                NsfwImgEndpoint.Ero_Wallpaper_Ero.ToString(),
-                NsfwImgEndpoint.Ahegao_Avatar.ToString(),
-                NsfwImgEndpoint.Holo_Avatar.ToString(),
-                NsfwImgEndpoint.Keta_Avatar.ToString(),
-        };
-
-        private static string[] nsfwGifExceptions = new string[] {
-                //NsfwGifEndpoint.
-        };
         #endregion RandomPickExceptions
 
         public async Task GetResponse<ET>(CommandContext ctx, string stringEndpoint) where ET : Enum
@@ -127,60 +115,6 @@ namespace DiscordBot.Commands
         }
         #endregion Gif
 
-        #region NSFW-Image
-        [Command("nsfw-image")]
-        [Aliases("ni")]
-        [Description("NSFW hentai image")]
-        [RequireNsfw]
-        public async Task NekoDLNSFWImageCommand(CommandContext ctx, [Description("The NSFW endpoint to use")] string endpoint)
-        {
-            await ctx.TriggerTypingAsync();
-
-            endpoint = endpoint.Replace("<", "");
-            endpoint = endpoint.Replace(">", "");
-
-            _ = Task.Run(async () => {
-                await GetResponse<NsfwImgEndpoint>(ctx, endpoint);
-            });
-        }
-
-        [Command("nsfw-image")]
-        [RequireNsfw]
-        public async Task NekoDLNSFWImageCommand(CommandContext ctx)
-        {
-            var all = NekosManager.GetAllEnpoints<NsfwImgEndpoint>().Except(nsfwImageExceptions).ToArray();
-
-            await NekoDLNSFWImageCommand(ctx, all[Random.Next(0, all.Length)]);
-        }
-        #endregion NSFW-Image
-
-        #region NSFW-Gif
-        [Command("nsfw-gif")]
-        [Aliases("ng")]
-        [Description("Gif")]
-        [RequireNsfw]
-        public async Task NekoDLNSFWGifCommand(CommandContext ctx, [Description("The endpoint to use")] string endpoint)
-        {
-            await ctx.TriggerTypingAsync();
-
-            endpoint = endpoint.Replace("<", "");
-            endpoint = endpoint.Replace(">", "");
-
-            _ = Task.Run(async () => {
-                await GetResponse<NsfwGifEndpoint>(ctx, endpoint);
-            });
-        }
-
-        [Command("nsfw-gif")]
-        [RequireNsfw]
-        public async Task NekoDLNSFWGifCommand(CommandContext ctx)
-        {
-            var all = NekosManager.GetAllEnpoints<NsfwGifEndpoint>().Except(nsfwGifExceptions).ToArray();
-
-            await NekoDLNSFWGifCommand(ctx, all[Random.Next(0, all.Length)]);
-        }
-        #endregion NSFW-Gif
-
         #region endpoints
         [Command("image-endpoints")]
         [Aliases("iep")]
@@ -198,28 +132,6 @@ namespace DiscordBot.Commands
         public async Task GifEndpointsCommand(CommandContext ctx)
         {
             var all = NekosManager.GetAllEnpoints<SfwGifEndpoint>();
-
-            await ctx.RespondAsync(string.Join(", ", all));
-        }
-
-        [Command("nsfw-image-endpoints")]
-        [Aliases("niep")]
-        [Description("Lists all the available NSFW endpoints")]
-        [RequireNsfw]
-        public async Task NsfwEndpointsCommand(CommandContext ctx)
-        {
-            var all = NekosManager.GetAllEnpoints<NsfwImgEndpoint>();
-
-            await ctx.RespondAsync(string.Join(", ", all));
-        }
-
-        [Command("nsfw-gif-endpoints")]
-        [Aliases("ngep")]
-        [Description("Lists all the available NSFW gif endpoints")]
-        [RequireNsfw]
-        public async Task NsfwGifEndpointsCommand(CommandContext ctx)
-        {
-            var all = NekosManager.GetAllEnpoints<NsfwGifEndpoint>();
 
             await ctx.RespondAsync(string.Join(", ", all));
         }

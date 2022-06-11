@@ -37,12 +37,6 @@ namespace DiscordBot.Managers
         {
             switch(value)
             {
-                case NsfwGifEndpoint ng:
-                    _nekosClient.WithNsfwGifEndpoint(ng);
-                    break;
-                case NsfwImgEndpoint ni:
-                    _nekosClient.WithNsfwImgEndpoint(ni);
-                    break;
                 case SfwGifEndpoint sg:
                     _nekosClient.WithSfwGifEndpoint(sg);
                     break;
