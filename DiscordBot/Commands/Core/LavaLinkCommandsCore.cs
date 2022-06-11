@@ -92,7 +92,7 @@ namespace DiscordBot.Commands.Core
             else
             {
                 // Search YouTube instead
-                finalLoadResult = node.Rest.GetTracksAsync(searchOrUrl).Result;
+                finalLoadResult = node.Rest.GetTracksAsync(searchOrUrl, LavalinkSearchType.Youtube).Result;
             }
 
             if (finalLoadResult.LoadResultType == LavalinkLoadResultType.LoadFailed
@@ -103,7 +103,7 @@ namespace DiscordBot.Commands.Core
 
                 if (string.IsNullOrWhiteSpace(error))
                 {
-                    error = loadResult.Exception.Message;
+                    error = loadResult?.Exception.Message;
                     if (string.IsNullOrWhiteSpace(error))
                     {
                         error = "Track loading failed";
