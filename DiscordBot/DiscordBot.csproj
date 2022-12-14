@@ -50,20 +50,20 @@
   </Target>
   
   <ItemGroup>
-    <PackageReference Include="DSharpPlus" Version="4.3.0-nightly-01140" />
-    <PackageReference Include="DSharpPlus.CommandsNext" Version="4.3.0-nightly-01140" />
-    <PackageReference Include="DSharpPlus.Interactivity" Version="4.3.0-nightly-01140" />
-    <PackageReference Include="DSharpPlus.Lavalink" Version="4.3.0-nightly-01140" />
-    <PackageReference Include="DSharpPlus.SlashCommands" Version="4.3.0-nightly-01140" />
-    <PackageReference Include="DSharpPlus.VoiceNext" Version="4.3.0-nightly-01140" />
-    <PackageReference Include="GitInfo" Version="2.2.0" />
-    <PackageReference Include="LiteDB" Version="5.0.11" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.2.0-1.final" />
+    <PackageReference Include="DSharpPlus" Version="4.3.0-nightly-01195" />
+    <PackageReference Include="DSharpPlus.CommandsNext" Version="4.3.0-nightly-01195" />
+    <PackageReference Include="DSharpPlus.Interactivity" Version="4.3.0-nightly-01195" />
+    <PackageReference Include="DSharpPlus.Lavalink" Version="4.3.0-nightly-01195" />
+    <PackageReference Include="DSharpPlus.SlashCommands" Version="4.3.0-nightly-01195" />
+    <PackageReference Include="DSharpPlus.VoiceNext" Version="4.3.0-nightly-01195" />
+    <PackageReference Include="GitInfo" Version="2.3.0" />
+    <PackageReference Include="LiteDB" Version="5.0.13" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.4.0" />
     <PackageReference Include="Nekos.Net" Version="3.2.0" />
     <PackageReference Include="SauceNET" Version="1.1.1" />
-    <PackageReference Include="Serilog" Version="2.11.0-dev-01380" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="3.1.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="4.0.2-dev-00890" />
+    <PackageReference Include="Serilog" Version="2.12.1-dev-01629" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="3.1.1-dev-10301" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="4.1.1-dev-00896" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.1-dev-00947" />
   </ItemGroup>
 
