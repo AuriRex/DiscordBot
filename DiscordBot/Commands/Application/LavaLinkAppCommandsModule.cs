@@ -23,7 +23,10 @@ namespace DiscordBot.Commands.Application
         {
             await ctx.DeferAsync();
 
-            await (await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, searchOrUrl)).DeleteOrEdit(ctx);
+            _ = Task.Run(async () =>
+            {
+                await (await LavaLinkCommandsCore.PlayCommand(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member, searchOrUrl)).DeleteOrEdit(ctx);
+            });
         }
 
         [SlashCommand("last-song", "Replay the last played song.")]

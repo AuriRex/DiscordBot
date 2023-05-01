@@ -1,0 +1,35 @@
+version: "3.9"
+volumes:
+  # discord-bot-data:
+  lavalink-data:
+services:
+  LavaLink:
+    image: "fredboat/lavalink:dev"
+    ports:
+      - "2333:2333"
+    volumes:
+      - lavalink-data:/opt/Lavalink
+    dns:
+      - 1.1.1.1
+    # networks:
+    #   - test
+  # DiscordBot:
+  #   image: "aurirex/polarisdiscordbot"
+  #   depends_on:
+  #     - "LavaLink"
+  #   ports:
+  #     - "11000:11000"
+  #   environment:
+  #     - bot_token
+  #     - saucenao_api
+  #     - lavalink_auth
+  #   volumes:
+  #     - discord-bot-data:/DiscordBot/data
+  #   dns:
+  #     - 1.1.1.1
+  #   command: ["./wait-for-it.sh", "LavaLink:2333", "--", "dotnet", "DiscordBot.dll"]
+    # networks:
+    #   - test
+# networks:
+#   test:
+#     driver: bridge
